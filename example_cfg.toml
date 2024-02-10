@@ -1,0 +1,4 @@
+[kasa-remote]
+wifi_ssid = "my_ap"
+wifi_psk = "my_pw"
+target_ip = "127.0.0.1"
