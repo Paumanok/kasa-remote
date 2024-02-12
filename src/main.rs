@@ -1,5 +1,6 @@
 use anyhow::{bail, Result};
 use esp_idf_svc::eventloop::EspSystemEventLoop;
+use esp_idf_svc::hal::task::thread::ThreadSpawnConfiguration;
 use esp_idf_svc::hal::prelude::Peripherals;
 use esp_idf_svc::hal::{gpio, i2c};
 use esp_idf_svc::hal::prelude::*;
@@ -9,17 +10,13 @@ use embedded_graphics::{
     prelude::*,
     text::{Baseline, Text},
 };
-use core::fmt::Write;
-use sh1106::{prelude::*, Builder};
-//use ssd1306::{prelude::*, I2CDisplayInterface, Ssd1306, mode::TerminalMode};
-
-use rust_kasa::kasa_protocol;
 use std::net::TcpStream;
-use std::{thread, sync::Arc};
-use esp_idf_svc::hal::task::thread::ThreadSpawnConfiguration;
+use std::{thread};
 use std::sync::mpsc;
 use wifi::wifi;
 
+use sh1106::{prelude::*, Builder};
+use rust_kasa::kasa_protocol;
 
 /// This configuration is picked up at compile time by `build.rs` from the
 /// file `cfg.toml`.
@@ -33,7 +30,7 @@ pub struct Config {
     target_ip: &'static str,
 }
 
-struct remote_state {
+struct RemoteState {
     ps_info:  kasa_protocol::SysInfo,
     realtime: Vec<kasa_protocol::Realtime>,
     switches: Vec<bool>,
@@ -71,9 +68,7 @@ fn get_ma() -> Option<kasa_protocol::Realtime> {
     let app_config = CONFIG; 
     let mut stream = TcpStream::connect(format!("{:}:9999", app_config.target_ip)).ok()?;
     let rt = kasa_protocol::get_realtime(&mut stream);
-    
     return rt
-    //return Some(99)
 }
 
 
@@ -130,16 +125,17 @@ fn current_service(tx: mpsc::Sender<u32>) {
     let app_config = CONFIG; 
     loop {
 
-        let mut stream = TcpStream::connect(format!("{:}:9999", app_config.target_ip)).ok().unwrap();
-        let rt = kasa_protocol::get_realtime(&mut stream);
-        match rt {
-            Some(i) => {
-                //log::info!("sent message");
-                tx.send(i.current_ma);
+        if let Ok(mut stream) = TcpStream::connect(format!("{:}:9999", app_config.target_ip)) {
+            //got a crash here with a None Value
+            let rt = kasa_protocol::get_realtime(&mut stream);
+            match rt {
+                Some(i) => {
+                    //log::info!("sent message");
+                    tx.send(i.current_ma);
+                }
+                _ => (),
+            };
         }
-        _ => (),
-        };
-
         std::thread::sleep(std::time::Duration::from_millis(1000));
 
     }
@@ -161,7 +157,7 @@ fn main() -> Result<()> {
     let app_config = CONFIG;
     
 
-    let _wifi = match wifi(
+    let mut _wifi = match wifi(
         app_config.wifi_ssid,
         app_config.wifi_psk,
         peripherals.modem,
@@ -187,46 +183,60 @@ fn main() -> Result<()> {
     let scl = peripherals.pins.gpio21;
 
     let config = i2c::I2cConfig::new().baudrate(400.kHz().into());
-    let mut i2c = i2c::I2cDriver::new(i2c, sda, scl, &config)?;
+    let  i2c = i2c::I2cDriver::new(i2c, sda, scl, &config)?;
     
     let (tx,rx) = mpsc::channel();
-   
+    //this apparently works for the anteceding thread builder call
+    //https://github.com/esp-rs/esp-idf-hal/issues/228#issuecomment-1676035648
     ThreadSpawnConfiguration {
-         name: Some("mid-lvl-thread\0".as_bytes()),
-         stack_size: 10000,
+         name: Some("current_service\0".as_bytes()),
+         stack_size: 8000,
          priority: 15,
          ..Default::default()
      }
      .set()
      .unwrap(); 
 
-     let i_thread = thread::Builder::new()
+     let _i_thread = thread::Builder::new()
          .stack_size(5000)
          .spawn(move || {
-             current_service(tx);
+             let _ = current_service(tx);
          });
+    
+    ThreadSpawnConfiguration {
+         name: Some("display_service\0".as_bytes()),
+         stack_size: 5000,
+         priority: 15,
+         ..Default::default()
+     }
+     .set()
+     .unwrap(); 
 
-
-    //thread::spawn(move || {
-    //    button_service(button);
-    //});
-
-    thread::spawn( move || {
-        display_service(i2c, rx);
+    let _d_thread = thread::Builder::new()
+        .stack_size(5000)
+        .spawn( move || {
+        let _ = display_service(i2c, rx);
     });
     
 
     log::info!("Hello, after thread spawn");
 
     loop {
-        //if FLAG.load(Ordering::Relaxed) {
-            //FLAG.store(false, Ordering::Relaxed);
+        
         if button.is_low() {
             let _ = toggle();
             println!("hit");
             std::thread::sleep(std::time::Duration::from_millis(500));
         }
 
+        if !_wifi.is_connected().unwrap() {
+            log::info!("wifi disconnected");
+            std::thread::sleep(std::time::Duration::from_secs(1)); //sleep a bit
+            if let Err(status) = _wifi.connect() {
+                std::thread::sleep(std::time::Duration::from_secs(2)); //sleep a bit
+            }
+        }
+        
 
         //match get_ma() {
         //    Some(i) => {
