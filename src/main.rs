@@ -104,7 +104,7 @@ fn display_service(i2c: i2c::I2cDriver, rx: mpsc::Receiver<u32>)  -> Result<()>{
         
         match rx.try_recv() {
             Ok(msg) => {
-                log::info!("got message");
+                //log::info!("got message");
                 display.clear();
                 let ma = format!("current ma: {:?}", msg);
                 Text::with_baseline(&ma, Point::new(0, 26), text_style, Baseline::Top)
@@ -135,6 +135,8 @@ fn current_service(tx: mpsc::Sender<u32>) {
                 }
                 _ => (),
             };
+        } else {
+            log::info!("failed to connect tcp stream");
         }
         std::thread::sleep(std::time::Duration::from_millis(1000));
 
@@ -236,15 +238,5 @@ fn main() -> Result<()> {
                 std::thread::sleep(std::time::Duration::from_secs(2)); //sleep a bit
             }
         }
-        
-
-        //match get_ma() {
-        //    Some(i) => {
-        //        //log::info!("sent message");
-        //        tx.send(i.current_ma);
-        //}
-        //_ => (),
-        //};
-        //std::thread::sleep(std::time::Duration::from_millis(500));
     }
 }
