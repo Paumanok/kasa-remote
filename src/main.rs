@@ -36,13 +36,6 @@ struct RemoteState {
     switches: Vec<bool>,
 }
 
-//static FLAG: AtomicBool = AtomicBool::new(false);
-//
-//fn gpio_int_callback() {
-//    FLAG.store(true, Ordering::Relaxed);
-//    println!("callback hit");
-//}
-//
 fn toggle() -> Result<()>{
     let app_config = CONFIG; 
     let mut stream = TcpStream::connect(format!("{:}:9999", app_config.target_ip))?;
@@ -143,34 +136,69 @@ fn display_service(i2c: i2c::I2cDriver, rx: mpsc::Receiver<u32>)  -> Result<()>{
     }
 
 }
+//https://leshow.github.io/post/rotary_encoder_hal/ thank u sir
+#[derive(PartialEq)]
+pub enum Direction {
+    Clockwise,
+    CounterClockwise,
+    None,
+}
+
+impl From<u8> for Direction {
+    fn from(s: u8) -> Self {
+        match s {
+            0b0001 | 0b0111 | 0b1000 | 0b1110 => Direction::Clockwise,
+            0b0010 | 0b0100 | 0b1011 | 0b1101 => Direction::CounterClockwise,
+            _ => Direction::None,
+        }
+    }
+}
+
+struct Rotary {
+    state: u8
+}
+impl Rotary {
+    pub fn new() -> Self {
+        Self {
+            state: 0u8,
+        }
+    }
+
+    pub fn update(&mut self, enc_a: bool, enc_b: bool) -> Option<Direction> {
+        let mut s =  self.state & 0b11;
+
+        if enc_a {
+            s |= 0b100;
+        }
+        if enc_b {
+            s |= 0b1000;
+        }
+        self.state = s >> 2;
+
+        Some(s.into())
+        
+    }
+}
 
 fn encoder_service(enc_a: gpio::PinDriver<'static, gpio::Gpio26, gpio::Input>,
-    enc_b: gpio::PinDriver<'static,gpio::Gpio27, gpio::Input>,
-    tx: mpsc::Sender<u8>) {
-    let mut last_enca: bool = enc_a.is_low(); 
+        enc_b: gpio::PinDriver<'static,gpio::Gpio27, gpio::Input>,
+        tx: mpsc::Sender<u8>) {
+    
+    let mut rot = Rotary::new();
+
+
     loop {
-        let cur_enca: bool = enc_a.is_low();
-        let cur_encb: bool = enc_b.is_low();
 
-        if cur_enca != last_enca && cur_enca {
-            if cur_encb != cur_enca {
-                tx.send(0);
-            } else {
-                tx.send(1);
-            }
-        last_enca = cur_enca;
-        }
+        match rot.update(enc_a.is_low(), enc_b.is_low()) {
+            Some(dir) => {
+                if dir != Direction::None {
+                    tx.send(dir as u8);
+                }
+            },
+            _ => (),
+        };
             
-
-        //if enc_a.is_low() && !enc_b.is_low() {
-        //    tx.send(1);
-        //    std::thread::sleep(std::time::Duration::from_millis(20));
-        //} else if enc_a.is_low() && enc_b.is_low() {
-        //    tx.send(0);
-        //    std::thread::sleep(std::time::Duration::from_millis(20));
-        //}
-        //println!("spam");
-        //std::thread::sleep(std::time::Duration::from_millis(5));
+        std::thread::sleep(std::time::Duration::from_millis(5));
     }
 }
 
