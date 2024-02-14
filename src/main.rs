@@ -5,7 +5,7 @@ use esp_idf_svc::hal::prelude::Peripherals;
 use esp_idf_svc::hal::{gpio, i2c};
 use esp_idf_svc::hal::prelude::*;
 use embedded_graphics::{
-    mono_font::{ascii::FONT_6X10, MonoTextStyleBuilder},
+    mono_font::{ascii::FONT_6X10, ascii::FONT_5X8, MonoTextStyleBuilder},
     pixelcolor::BinaryColor,
     prelude::*,
     text::{Baseline, Text},
@@ -87,6 +87,10 @@ fn display_service(i2c: i2c::I2cDriver, rx: mpsc::Receiver<u32>)  -> Result<()>{
         .font(&FONT_6X10)
         .text_color(BinaryColor::On)
         .build();
+    let text_small = MonoTextStyleBuilder::new()
+        .font(&FONT_5X8)
+        .text_color(BinaryColor::On)
+        .build();
     
     Text::with_baseline("Hello world!", Point::zero(), text_style, Baseline::Top)
         .draw(&mut display)
@@ -106,8 +110,28 @@ fn display_service(i2c: i2c::I2cDriver, rx: mpsc::Receiver<u32>)  -> Result<()>{
             Ok(msg) => {
                 //log::info!("got message");
                 display.clear();
-                let ma = format!("current ma: {:?}", msg);
+                let mode1 = "Monitor";
+                let mode2 = "Totals";
+                let mode3 = "Settings";
+
+                Text::with_baseline(mode1, Point::new(0, 4), text_style, Baseline::Top)
+                    .draw(&mut display)
+                    .unwrap();
+                Text::with_baseline(mode2, Point::new((6 * mode1.len() as i32) + 4, 2), text_small, Baseline::Top)
+                    .draw(&mut display)
+                    .unwrap();
+
+                Text::with_baseline(mode3, Point::new((6 * mode1.len() + 6 * mode2.len()) as i32 + 4, 2), text_small, Baseline::Top)
+                    .draw(&mut display)
+                    .unwrap();
+
+                let ma = format!("I: {:?}mA", msg);
                 Text::with_baseline(&ma, Point::new(0, 26), text_style, Baseline::Top)
+                    .draw(&mut display)
+                    .unwrap();
+                
+                let outlet = " 1 * * * * * ";
+                Text::with_baseline(outlet, Point::new(28, 57), text_small, Baseline::Top)
                     .draw(&mut display)
                     .unwrap();
                 display.flush().unwrap();
@@ -118,6 +142,36 @@ fn display_service(i2c: i2c::I2cDriver, rx: mpsc::Receiver<u32>)  -> Result<()>{
         std::thread::sleep(std::time::Duration::from_millis(1000));
     }
 
+}
+
+fn encoder_service(enc_a: gpio::PinDriver<'static, gpio::Gpio26, gpio::Input>,
+    enc_b: gpio::PinDriver<'static,gpio::Gpio27, gpio::Input>,
+    tx: mpsc::Sender<u8>) {
+    let mut last_enca: bool = enc_a.is_low(); 
+    loop {
+        let cur_enca: bool = enc_a.is_low();
+        let cur_encb: bool = enc_b.is_low();
+
+        if cur_enca != last_enca && cur_enca {
+            if cur_encb != cur_enca {
+                tx.send(0);
+            } else {
+                tx.send(1);
+            }
+        last_enca = cur_enca;
+        }
+            
+
+        //if enc_a.is_low() && !enc_b.is_low() {
+        //    tx.send(1);
+        //    std::thread::sleep(std::time::Duration::from_millis(20));
+        //} else if enc_a.is_low() && enc_b.is_low() {
+        //    tx.send(0);
+        //    std::thread::sleep(std::time::Duration::from_millis(20));
+        //}
+        //println!("spam");
+        //std::thread::sleep(std::time::Duration::from_millis(5));
+    }
 }
 
 fn current_service(tx: mpsc::Sender<u32>) {
@@ -180,6 +234,14 @@ fn main() -> Result<()> {
     let mut button = gpio::PinDriver::input(peripherals.pins.gpio19).unwrap();
     button.set_pull(gpio::Pull::Up).unwrap();
 
+    let mut encoder_switch = gpio::PinDriver::input(peripherals.pins.gpio14).unwrap();
+    encoder_switch.set_pull(gpio::Pull::Up).unwrap();
+
+    let mut enc_a = gpio::PinDriver::input(peripherals.pins.gpio26).unwrap();
+    let mut enc_b = gpio::PinDriver::input(peripherals.pins.gpio27).unwrap();
+    enc_a.set_pull(gpio::Pull::Up).unwrap();
+    enc_b.set_pull(gpio::Pull::Up).unwrap();
+    
     let i2c = peripherals.i2c0;
     let sda = peripherals.pins.gpio22;
     let scl = peripherals.pins.gpio21;
@@ -187,13 +249,16 @@ fn main() -> Result<()> {
     let config = i2c::I2cConfig::new().baudrate(400.kHz().into());
     let  i2c = i2c::I2cDriver::new(i2c, sda, scl, &config)?;
     
-    let (tx,rx) = mpsc::channel();
+    let (I_tx,I_rx) = mpsc::channel();
+
+
+    let (enc_tx,enc_rx) = mpsc::channel();
     //this apparently works for the anteceding thread builder call
     //https://github.com/esp-rs/esp-idf-hal/issues/228#issuecomment-1676035648
     ThreadSpawnConfiguration {
          name: Some("current_service\0".as_bytes()),
          stack_size: 8000,
-         priority: 15,
+         priority: 13,
          ..Default::default()
      }
      .set()
@@ -202,13 +267,13 @@ fn main() -> Result<()> {
      let _i_thread = thread::Builder::new()
          .stack_size(5000)
          .spawn(move || {
-             let _ = current_service(tx);
+             let _ = current_service(I_tx);
          });
     
     ThreadSpawnConfiguration {
          name: Some("display_service\0".as_bytes()),
          stack_size: 5000,
-         priority: 15,
+         priority: 14,
          ..Default::default()
      }
      .set()
@@ -217,9 +282,23 @@ fn main() -> Result<()> {
     let _d_thread = thread::Builder::new()
         .stack_size(5000)
         .spawn( move || {
-        let _ = display_service(i2c, rx);
+        let _ = display_service(i2c, I_rx);
     });
-    
+
+    ThreadSpawnConfiguration {
+         name: Some("encoder_service\0".as_bytes()),
+         stack_size: 3000,
+         priority: 15,
+         ..Default::default()
+     }
+     .set()
+     .unwrap(); 
+
+    let _e_thread = thread::Builder::new()
+        .stack_size(3000)
+        .spawn(move || {
+            let _ = encoder_service(enc_a.into(), enc_b.into(), enc_tx);
+        });
 
     log::info!("Hello, after thread spawn");
 
@@ -230,6 +309,18 @@ fn main() -> Result<()> {
             println!("hit");
             std::thread::sleep(std::time::Duration::from_millis(500));
         }
+
+        match enc_rx.try_recv() {
+            Ok(msg) => { println!("encoder change: {:}", 
+                match msg {
+                    1 => "inc",
+                    0 => "dec",
+                    _ => "NaN",
+                });
+            }
+            _ => ()
+
+        };
 
         if !_wifi.is_connected().unwrap() {
             log::info!("wifi disconnected");
