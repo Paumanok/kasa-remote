@@ -30,11 +30,6 @@ pub struct Config {
     target_ip: &'static str,
 }
 
-struct RemoteState {
-    ps_info:  kasa_protocol::SysInfo,
-    realtime: Vec<kasa_protocol::Realtime>,
-    switches: Vec<bool>,
-}
 
 fn toggle() -> Result<()>{
     let app_config = CONFIG; 
@@ -57,6 +52,18 @@ fn get_allrt() -> Option<Vec<kasa_protocol::Realtime>> {
     let all_rt: Option<Vec<kasa_protocol::Realtime>> = kasa_protocol::get_all_realtime(&mut stream);
     return all_rt
 }
+
+fn get_rt(idx: u8) -> Option<kasa_protocol::Realtime> {
+    let app_config = CONFIG; 
+    let mut stream = TcpStream::connect(format!("{:}:9999", app_config.target_ip)).ok()?;
+    let children = kasa_protocol::get_children(&mut stream)?;
+
+    let rt = kasa_protocol::get_realtime_by_id(&mut stream, &children[idx as usize].id);
+
+    return rt
+
+}
+
 fn get_ma() -> Option<kasa_protocol::Realtime> {
     let app_config = CONFIG; 
     let mut stream = TcpStream::connect(format!("{:}:9999", app_config.target_ip)).ok()?;
@@ -64,9 +71,122 @@ fn get_ma() -> Option<kasa_protocol::Realtime> {
     return rt
 }
 
+#[derive(Clone)]
+enum Mode {
+    Monitor,
+    Totals,
+    Info
+}
+
+struct Update {
+    idx: Option<u8>,
+    mode: Option<Mode>
+}
+
+#[derive(Clone)]
+struct Monitor {
+    idx: u8,
+    stats: Option<kasa_protocol::Realtime>,
+}
+impl Monitor {
+    pub fn new() -> Self{
+         Self {
+            idx: 0u8,
+            stats: Self::get_current_stat(1),
+        }
+    }
+
+    pub fn update(&mut self) {
+        if let Some(stat) = Self::get_current_stat(self.idx) {
+
+            self.stats = Some(stat);
+        }
+    }
+    pub fn get_current_stat(idx: u8) -> Option<kasa_protocol::Realtime> {
+        let app_config = CONFIG; 
+        let mut stream = TcpStream::connect(format!("{:}:9999", app_config.target_ip)).ok()?;
+        kasa_protocol::get_realtime_by_idx(&mut stream, idx.into())
+    }
+}
+
+#[derive(Clone)]
+struct Totals {
+    stats: Vec<kasa_protocol::Realtime>
+}
+
+impl Totals {
+    pub fn new() -> Option<Self> {
+        Some(Self {
+            stats: Self::get_stats()?,
+        })
+    }
+    
+    pub fn update(&mut self) {
+        if let Some(stat) = Self::get_stats() {
+            self.stats = stat;
+        }
+    }
+
+    pub fn get_stats() -> Option<Vec<kasa_protocol::Realtime>> {
+        let app_config = CONFIG; 
+        let mut stream = TcpStream::connect(format!("{:}:9999", app_config.target_ip)).ok()?;
+        kasa_protocol::get_all_realtime(&mut stream)
+    }
+}
+
+#[derive(Clone)]
+struct RemoteState {
+    mode: Mode,
+    monitor: Monitor,
+    totals: Option<Totals>,
+}
+// this wont work at all as it currently sits
+impl RemoteState {
+    pub fn new() -> Self {
+        println!("new remote state initialized");
+        Self {
+            mode: Mode::Monitor,
+            monitor: Monitor::new(),
+            totals: None,
+        }
+    }
+    //this is absolutely disgusting 
+    pub fn update_from_encoder(&mut self, dir: Direction) {
+       match self.mode {
+            Mode::Monitor => {
+                match dir {
+                    Direction::Clockwise => { 
+                        //println!("c");
+                        if self.monitor.idx < 5 {
+                            self.monitor.idx+=1;
+                            println!("{:?}", self.monitor.idx);
+                        }
+                    }
+                    Direction::CounterClockwise => {
+                        //println!("cc");
+                        if self.monitor.idx > 0 {
+                            //println!("subbin");
+                            self.monitor.idx-=1;
+                            println!("{:?}", self.monitor.idx);
+                        }
+                    }
+                    _ => (),
+                }
+            }
+            Mode::Totals => {
+
+            }
+            Mode::Info => {
+            }
+        }
+    }
 
 
-fn display_service(i2c: i2c::I2cDriver, rx: mpsc::Receiver<u32>)  -> Result<()>{
+}
+
+
+
+fn display_service(i2c: i2c::I2cDriver, rx: mpsc::Receiver<RemoteState>)  -> Result<()>{
     println!("display_service hit");
 
 
@@ -100,7 +220,7 @@ fn display_service(i2c: i2c::I2cDriver, rx: mpsc::Receiver<u32>)  -> Result<()>{
     loop {
         
         match rx.try_recv() {
-            Ok(msg) => {
+            Ok(mut msg) => {
                 //log::info!("got message");
                 display.clear();
                 let mode1 = "Monitor";
@@ -117,13 +237,24 @@ fn display_service(i2c: i2c::I2cDriver, rx: mpsc::Receiver<u32>)  -> Result<()>{
                 Text::with_baseline(mode3, Point::new((6 * mode1.len() + 6 * mode2.len()) as i32 + 4, 2), text_small, Baseline::Top)
                     .draw(&mut display)
                     .unwrap();
-
-                let ma = format!("I: {:?}mA", msg);
+                
+                msg.monitor.update();
+                let ma = format!("I: {:?}mA   Idx: {:?}", 
+                    match msg.monitor.stats {
+                        Some(stat) => stat.current_ma,
+                        _ => 4242,
+                    },
+                    msg.monitor.idx
+                );
                 Text::with_baseline(&ma, Point::new(0, 26), text_style, Baseline::Top)
                     .draw(&mut display)
                     .unwrap();
                 
                 let outlet = " 1 * * * * * ";
+                //let outlet = " ";
+                //for i in in 1..6 {
+                //    
+                //}
                 Text::with_baseline(outlet, Point::new(28, 57), text_small, Baseline::Top)
                     .draw(&mut display)
                     .unwrap();
@@ -144,18 +275,9 @@ pub enum Direction {
     None,
 }
 
-impl From<u8> for Direction {
-    fn from(s: u8) -> Self {
-        match s {
-            0b0001 | 0b0111 | 0b1000 | 0b1110 => Direction::Clockwise,
-            0b0010 | 0b0100 | 0b1011 | 0b1101 => Direction::CounterClockwise,
-            _ => Direction::None,
-        }
-    }
-}
 
 struct Rotary {
-    state: u8
+    state: u8,
 }
 impl Rotary {
     pub fn new() -> Self {
@@ -164,35 +286,70 @@ impl Rotary {
         }
     }
 
-    pub fn update(&mut self, enc_a: bool, enc_b: bool) -> Option<Direction> {
-        let mut s =  self.state & 0b11;
-
-        if enc_a {
-            s |= 0b100;
-        }
-        if enc_b {
-            s |= 0b1000;
-        }
-        self.state = s >> 2;
-
-        Some(s.into())
+    pub fn update(&mut self, clk: bool, dt: bool) -> Option<Direction> {
         
+        match self.state {
+            0 => {
+                if !clk {
+                    self.state = 1;
+                } else if !dt {
+                    self.state = 4;
+                }
+            }
+            1 => {
+                if !dt {
+                    self.state = 2;
+                    }
+            }
+            2 => {
+                if clk {
+                    self.state = 3;
+                }
+            }
+            3 => {
+                if clk && dt {
+                    self.state = 0;
+                    return Some(Direction::Clockwise);
+                }
+            }
+            4 => {
+                if !clk {
+                    self.state = 5;
+                }
+            }
+            5 => {
+                if dt {
+                    self.state = 6;
+                }
+            }
+            6 => {
+                if clk && dt {
+                    self.state = 0;
+                    return Some(Direction::CounterClockwise);
+                }
+            }
+            _ => (),
+        }
+
+        None
     }
+
 }
 
-fn encoder_service(enc_a: gpio::PinDriver<'static, gpio::Gpio26, gpio::Input>,
-        enc_b: gpio::PinDriver<'static,gpio::Gpio27, gpio::Input>,
-        tx: mpsc::Sender<u8>) {
+fn encoder_service(dt: gpio::PinDriver<'static, gpio::Gpio26, gpio::Input>,
+        clk: gpio::PinDriver<'static,gpio::Gpio27, gpio::Input>,
+        tx: mpsc::Sender<Direction>) {
     
     let mut rot = Rotary::new();
 
 
     loop {
 
-        match rot.update(enc_a.is_low(), enc_b.is_low()) {
+        match rot.update(clk.is_low(), dt.is_low()) {
             Some(dir) => {
                 if dir != Direction::None {
-                    tx.send(dir as u8);
+                    let _ = tx.send(dir);
+                    //std::thread::sleep(std::time::Duration::from_millis(200));
                 }
             },
             _ => (),
@@ -202,7 +359,7 @@ fn encoder_service(enc_a: gpio::PinDriver<'static, gpio::Gpio26, gpio::Input>,
     }
 }
 
-fn current_service(tx: mpsc::Sender<u32>) {
+fn current_service(tx: mpsc::Sender<kasa_protocol::Realtime>) {
     
     let app_config = CONFIG; 
     loop {
@@ -213,7 +370,7 @@ fn current_service(tx: mpsc::Sender<u32>) {
             match rt {
                 Some(i) => {
                     //log::info!("sent message");
-                    tx.send(i.current_ma);
+                    let _ = tx.send(i);
                 }
                 _ => (),
             };
@@ -253,11 +410,6 @@ fn main() -> Result<()> {
         }
     };
 
-    //let mut rs = remote_state {
-    //    ps_info: get_sys().unwrap(),
-    //    realtime: get_allrt().unwrap(),
-    //    switches: vec![false;5]
-    //};
 
     let mut button = gpio::PinDriver::input(peripherals.pins.gpio19).unwrap();
     button.set_pull(gpio::Pull::Up).unwrap();
@@ -277,10 +429,9 @@ fn main() -> Result<()> {
     let config = i2c::I2cConfig::new().baudrate(400.kHz().into());
     let  i2c = i2c::I2cDriver::new(i2c, sda, scl, &config)?;
     
-    let (I_tx,I_rx) = mpsc::channel();
-
-
+    let (i_tx,i_rx) = mpsc::channel();
     let (enc_tx,enc_rx) = mpsc::channel();
+    let (rs_tx, rs_rx) = mpsc::channel();
     //this apparently works for the anteceding thread builder call
     //https://github.com/esp-rs/esp-idf-hal/issues/228#issuecomment-1676035648
     ThreadSpawnConfiguration {
@@ -295,12 +446,12 @@ fn main() -> Result<()> {
      let _i_thread = thread::Builder::new()
          .stack_size(5000)
          .spawn(move || {
-             let _ = current_service(I_tx);
+             let _ = current_service(i_tx);
          });
     
     ThreadSpawnConfiguration {
          name: Some("display_service\0".as_bytes()),
-         stack_size: 5000,
+         stack_size: 10000,
          priority: 14,
          ..Default::default()
      }
@@ -308,9 +459,9 @@ fn main() -> Result<()> {
      .unwrap(); 
 
     let _d_thread = thread::Builder::new()
-        .stack_size(5000)
+        .stack_size(10000)
         .spawn( move || {
-        let _ = display_service(i2c, I_rx);
+        let _ = display_service(i2c, rs_rx);
     });
 
     ThreadSpawnConfiguration {
@@ -329,33 +480,40 @@ fn main() -> Result<()> {
         });
 
     log::info!("Hello, after thread spawn");
+    
+    let mut rs = RemoteState::new();
+    //send the inital state for the display
+    rs_tx.send(rs.clone());
 
     loop {
-        
         if button.is_low() {
             let _ = toggle();
             println!("hit");
             std::thread::sleep(std::time::Duration::from_millis(500));
         }
 
+        
         match enc_rx.try_recv() {
-            Ok(msg) => { println!("encoder change: {:}", 
-                match msg {
-                    1 => "inc",
-                    0 => "dec",
-                    _ => "NaN",
-                });
+            Ok(msg) => {
+                rs.update_from_encoder(msg);
+                rs_tx.send(rs.clone());
             }
-            _ => ()
-
+            _ => (),
         };
+
+
 
         if !_wifi.is_connected().unwrap() {
             log::info!("wifi disconnected");
             std::thread::sleep(std::time::Duration::from_secs(1)); //sleep a bit
-            if let Err(status) = _wifi.connect() {
-                std::thread::sleep(std::time::Duration::from_secs(2)); //sleep a bit
+            match _wifi.connect() {
+                Err(_status) => {
+                    std::thread::sleep(std::time::Duration::from_secs(2)); //sleep a bit
+                }
+                _ => (),
             }
+
+
         }
     }
 }
