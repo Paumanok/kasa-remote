@@ -295,10 +295,17 @@ impl Rotary {
 }
 
 pub fn encoder_service(
-    dt: gpio::PinDriver<'static, gpio::Gpio26, gpio::Input>,
-    clk: gpio::PinDriver<'static, gpio::Gpio27, gpio::Input>,
+    dt: impl gpio::IOPin + 'static,
+    clk: impl gpio::IOPin + 'static,
     rs: Arc<Mutex<RemoteState>>,
 ) {
+    //https://github.com/esp-rs/esp-idf-hal/issues/221#issuecomment-1483905314
+    //this is so I don't have to hard-specify the pin in the function signature
+    let mut dt = gpio::PinDriver::input(dt.downgrade()).unwrap();
+    let mut clk = gpio::PinDriver::input(clk.downgrade()).unwrap();
+    dt.set_pull(gpio::Pull::Up).unwrap();
+    clk.set_pull(gpio::Pull::Up).unwrap();
+
     let mut rot = Rotary::new();
 
     loop {

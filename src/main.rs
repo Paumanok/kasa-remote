@@ -5,7 +5,7 @@ use esp_idf_svc::hal::prelude::*;
 use esp_idf_svc::hal::task::thread::ThreadSpawnConfiguration;
 use esp_idf_svc::hal::{gpio, i2c};
 use std::net::TcpStream;
-use std::sync::{ Arc, Mutex};
+use std::sync::{Arc, Mutex};
 use std::thread;
 use wifi::wifi;
 
@@ -32,7 +32,6 @@ fn toggle() -> Result<()> {
     kasa_protocol::toggle_relay_by_idx(&mut stream, 0);
     Ok(())
 }
-
 
 fn main() -> Result<()> {
     // It is necessary to call this function once. Otherwise some patches to the runtime
@@ -65,10 +64,10 @@ fn main() -> Result<()> {
     let mut encoder_switch = gpio::PinDriver::input(peripherals.pins.gpio14).unwrap();
     encoder_switch.set_pull(gpio::Pull::Up).unwrap();
 
-    let mut enc_a = gpio::PinDriver::input(peripherals.pins.gpio26).unwrap();
-    let mut enc_b = gpio::PinDriver::input(peripherals.pins.gpio27).unwrap();
-    enc_a.set_pull(gpio::Pull::Up).unwrap();
-    enc_b.set_pull(gpio::Pull::Up).unwrap();
+    //let mut enc_a = gpio::PinDriver::input(peripherals.pins.gpio26).unwrap();
+    //let mut enc_b = gpio::PinDriver::input(peripherals.pins.gpio27).unwrap();
+    //enc_a.set_pull(gpio::Pull::Up).unwrap();
+    //enc_b.set_pull(gpio::Pull::Up).unwrap();
 
     let i2c = peripherals.i2c0;
     let sda = peripherals.pins.gpio22;
@@ -120,7 +119,9 @@ fn main() -> Result<()> {
     .unwrap();
 
     let _e_thread = thread::Builder::new().stack_size(3000).spawn(move || {
-        let _ = peripheral_util::encoder_service(enc_a.into(), enc_b.into(), rs_enc);
+        let _ = peripheral_util::encoder_service(
+            //enc_a.into(), enc_b.into(), rs_enc);
+            peripherals.pins.gpio26, peripherals.pins.gpio27, rs_enc);
     });
 
     log::info!("Hello, after thread spawn");
