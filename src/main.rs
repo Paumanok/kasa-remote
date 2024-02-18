@@ -61,13 +61,9 @@ fn main() -> Result<()> {
     let mut button = gpio::PinDriver::input(peripherals.pins.gpio19).unwrap();
     button.set_pull(gpio::Pull::Up).unwrap();
 
-    let mut encoder_switch = gpio::PinDriver::input(peripherals.pins.gpio14).unwrap();
-    encoder_switch.set_pull(gpio::Pull::Up).unwrap();
-
-    //let mut enc_a = gpio::PinDriver::input(peripherals.pins.gpio26).unwrap();
-    //let mut enc_b = gpio::PinDriver::input(peripherals.pins.gpio27).unwrap();
-    //enc_a.set_pull(gpio::Pull::Up).unwrap();
-    //enc_b.set_pull(gpio::Pull::Up).unwrap();
+    let enc_dt = peripherals.pins.gpio26;
+    let enc_clk = peripherals.pins.gpio27;
+    let enc_button = peripherals.pins.gpio14;
 
     let i2c = peripherals.i2c0;
     let sda = peripherals.pins.gpio22;
@@ -106,7 +102,8 @@ fn main() -> Result<()> {
     .unwrap();
 
     let _d_thread = thread::Builder::new().stack_size(10000).spawn(move || {
-        let _ = peripheral_util::display_service(i2c, rs_disp);
+        //let _ = peripheral_util::display_service(i2c, rs_disp);
+        let _ = peripheral_util::Display::new().display_service(i2c, rs_disp);
     });
 
     ThreadSpawnConfiguration {
@@ -121,13 +118,11 @@ fn main() -> Result<()> {
     let _e_thread = thread::Builder::new().stack_size(3000).spawn(move || {
         let _ = peripheral_util::encoder_service(
             //enc_a.into(), enc_b.into(), rs_enc);
-            peripherals.pins.gpio26, peripherals.pins.gpio27, rs_enc);
+            enc_dt, enc_clk, enc_button, rs_enc);
     });
 
     log::info!("Hello, after thread spawn");
 
-    //send the inital state for the display
-    //rs_tx.send(rs.clone());
 
     loop {
         if button.is_low() {

@@ -2,7 +2,7 @@
 //
 use anyhow::{Result};
 use embedded_graphics::{
-    mono_font::{ascii::FONT_5X8, ascii::FONT_6X10, MonoTextStyleBuilder},
+    mono_font::{ascii::FONT_5X8, ascii::FONT_6X10, MonoTextStyleBuilder, MonoTextStyle},
     pixelcolor::BinaryColor,
     prelude::*,
     text::{Baseline, Text},
@@ -26,17 +26,15 @@ pub struct Config {
     target_ip: &'static str,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Copy)]
+#[derive(PartialEq)]
+#[derive(Debug)]
 enum Mode {
     Monitor,
     Totals,
     Info,
 }
 
-struct Update {
-    idx: Option<u8>,
-    mode: Option<Mode>,
-}
 
 #[derive(Clone)]
 struct Monitor {
@@ -91,6 +89,7 @@ impl Totals {
 #[derive(Clone)]
 pub struct RemoteState {
     mode: Mode,
+    select_mode: bool,
     monitor: Monitor,
     totals: Option<Totals>,
 }
@@ -100,140 +99,219 @@ impl RemoteState {
         println!("new remote state initialized");
         Self {
             mode: Mode::Monitor,
+            select_mode: false,
             monitor: Monitor::new(),
             totals: None,
         }
     }
+
+    fn update_mode(&mut self, dir: Direction) {
+        match dir {
+            Direction::Clockwise => {
+                self.mode = match self.mode {
+                    Mode::Monitor => Mode::Totals,
+                    Mode::Totals => Mode::Info,
+                    _ => self.mode,
+                };
+            }
+            Direction::CounterClockwise => {
+                self.mode = match self.mode {
+                    Mode::Info => Mode::Totals,
+                    Mode::Totals => Mode::Monitor,
+                    _ => self.mode,
+                };
+            }
+            Direction::Press => {
+                self.select_mode = !self.select_mode;
+            }
+            _ => (),
+        };
+        println!("{:?}", self.mode);
+    }
+
     //this is absolutely disgusting
     pub fn update_from_encoder(&mut self, dir: Direction) {
-        match self.mode {
-            Mode::Monitor => {
-                match dir {
-                    Direction::Clockwise => {
-                        if self.monitor.idx < 5 {
-                            self.monitor.idx += 1;
-                            println!("{:?}", self.monitor.idx);
+       
+        if self.select_mode {
+           self.update_mode(dir);
+        } else {
+
+            match self.mode {
+                Mode::Monitor => {
+                    match dir {
+                        Direction::Clockwise => {
+                            if self.monitor.idx < 5 {
+                                self.monitor.idx += 1;
+                                println!("{:?}", self.monitor.idx);
+                            }
                         }
-                    }
-                    Direction::CounterClockwise => {
-                        if self.monitor.idx > 0 {
-                            self.monitor.idx -= 1;
-                            println!("{:?}", self.monitor.idx);
+                        Direction::CounterClockwise => {
+                            if self.monitor.idx > 0 {
+                                self.monitor.idx -= 1;
+                                println!("{:?}", self.monitor.idx);
+                            }
                         }
+                        Direction::Press => {
+                            self.select_mode = !self.select_mode;
+                        }
+                        _ => (),
                     }
-                    _ => (),
                 }
+                Mode::Totals => {}
+                Mode::Info => {}
             }
-            Mode::Totals => {}
-            Mode::Info => {}
         }
     }
 }
 
-pub fn display_service(i2c: i2c::I2cDriver, rs: Arc<Mutex<RemoteState>>) -> Result<()> {
-    println!("display_service hit");
 
-    let mut display: GraphicsMode<_> = Builder::new().connect_i2c(i2c).into();
-
-    display.init().unwrap();
-    display.flush().unwrap();
-
-    let text_style = MonoTextStyleBuilder::new()
-        .font(&FONT_6X10)
-        .text_color(BinaryColor::On)
-        .build();
-    let text_small = MonoTextStyleBuilder::new()
-        .font(&FONT_5X8)
-        .text_color(BinaryColor::On)
-        .build();
-
-    Text::with_baseline("Hello world!", Point::zero(), text_style, Baseline::Top)
-        .draw(&mut display)
-        .unwrap();
-
-    //let info = format!("ip: {:?}",(*_wifi).sta_netif().get_ip_info()?.ip);
-    //
-    //Text::with_baseline(&info, Point::new(0, 16), text_style, Baseline::Top)
-    //    .draw(&mut display)
-    //    .unwrap();
-
-    display.flush().unwrap();
-
-    loop {
-        match rs.lock() {
-            Ok(msg) => {
-                //log::info!("got message");
-                display.clear();
-                let mode1 = "Monitor";
-                let mode2 = "Totals";
-                let mode3 = "Settings";
-
-                Text::with_baseline(mode1, Point::new(0, 4), text_style, Baseline::Top)
-                    .draw(&mut display)
-                    .unwrap();
-                Text::with_baseline(
-                    mode2,
-                    Point::new((6 * mode1.len() as i32) + 4, 2),
-                    text_small,
-                    Baseline::Top,
-                )
-                .draw(&mut display)
-                .unwrap();
-
-                Text::with_baseline(
-                    mode3,
-                    Point::new((6 * mode1.len() + 6 * mode2.len()) as i32 + 4, 2),
-                    text_small,
-                    Baseline::Top,
-                )
-                .draw(&mut display)
-                .unwrap();
-
-                //msg.monitor.update();
-                let ma = format!(
-                    "I: {:?}mA   Idx: {:?}",
-                    match msg.monitor.stats {
-                        Some(stat) => stat.current_ma,
-                        _ => 4242,
-                    },
-                    msg.monitor.idx
-                );
-                Text::with_baseline(&ma, Point::new(0, 26), text_style, Baseline::Top)
-                    .draw(&mut display)
-                    .unwrap();
-
-                //let outlet = " 1 * * * * * ";
-
-                let mut outlet = String::from("");
-
-                for i in 1..7 {
-                    if msg.monitor.idx + 1 == i {
-                        outlet.push_str(format!(" {:?}",i).as_str());
-                    } else {
-                        outlet.push_str(" *");
-                    }
-                }
-                let outlet = outlet.as_str();
-                //let outlet = " ";
-                //for i in in 1..6 {
-                //
-                //}
-                Text::with_baseline(outlet, Point::new(28, 57), text_small, Baseline::Top)
-                    .draw(&mut display)
-                    .unwrap();
-                display.flush().unwrap();
-            }
-            _ => (),
-        };
-        //time for ~24fps
-        std::thread::sleep(std::time::Duration::from_millis((1000 / 24) as u64));
-    }
+pub struct Display<'a> {
+    text_normal: MonoTextStyle<'a,BinaryColor>,
+    text_small: MonoTextStyle<'a,BinaryColor>,
 }
+
+impl<'a> Display<'a> {
+    pub fn new() -> Self{
+        
+        let text_normal = MonoTextStyleBuilder::new()
+            .font(&FONT_6X10)
+            .text_color(BinaryColor::On)
+            .build();
+        let text_small = MonoTextStyleBuilder::new()
+            .font(&FONT_5X8)
+            .text_color(BinaryColor::On)
+            .build();
+
+        Self {
+            text_normal: text_normal,
+            text_small: text_small,
+        }
+    }
+
+    fn lazy_menu_setup(&mut self, cur_mode: Mode, drawing_mode: Mode) -> 
+    (i32,  MonoTextStyle<'a,BinaryColor>) {
+        if cur_mode == drawing_mode {
+
+            return (4, self.text_normal)
+        } else {
+            return (2, self.text_small)
+        }
+
+    }
+
+
+    pub fn display_service(&mut self,i2c: i2c::I2cDriver, rs: Arc<Mutex<RemoteState>>) -> Result<()> {
+        println!("display_service hit");
+    
+        let mut display: GraphicsMode<_> = Builder::new().connect_i2c(i2c).into();
+    
+        display.init().unwrap();
+        display.flush().unwrap();
+    
+        //let text_style = MonoTextStyleBuilder::new()
+        //    .font(&FONT_6X10)
+        //    .text_color(BinaryColor::On)
+        //    .build();
+        //let text_small = MonoTextStyleBuilder::new()
+        //    .font(&FONT_5X8)
+        //    .text_color(BinaryColor::On)
+        //    .build();
+        Text::with_baseline("Hello world!", Point::zero(), self.text_normal, Baseline::Top)
+            .draw(&mut display)
+            .unwrap();
+    
+        //let info = format!("ip: {:?}",(*_wifi).sta_netif().get_ip_info()?.ip);
+        //
+        //Text::with_baseline(&info, Point::new(0, 16), text_style, Baseline::Top)
+        //    .draw(&mut display)
+        //    .unwrap();
+    
+        display.flush().unwrap();
+    
+        loop {
+            match rs.lock() {
+                Ok(msg) => {
+                    display.clear();
+                    let modes =  ["Monitor", "Totals", "Settings"];
+                    let mode1 = "Monitor";
+                    let mode2 = "Totals";
+                    let mode3 = "Settings";
+                    
+    
+                    let (y, text) = self.lazy_menu_setup(msg.mode, Mode::Monitor);
+                    Text::with_baseline(mode1, Point::new(0, y), text, Baseline::Top)
+                        .draw(&mut display)
+                        .unwrap();
+
+                    let (y, text) = self.lazy_menu_setup(msg.mode, Mode::Totals);
+                    Text::with_baseline(
+                        mode2,
+                        Point::new((6 * mode1.len() as i32) + 4, y),
+                        text,
+                        Baseline::Top,
+                    )
+                    .draw(&mut display)
+                    .unwrap();
+    
+                    let (y, text) = self.lazy_menu_setup(msg.mode, Mode::Info);
+                    Text::with_baseline(
+                        mode3,
+                        Point::new((6 * mode1.len() + 6 * mode2.len()) as i32 + 4, y),
+                        text,
+                        Baseline::Top,
+                    )
+                    .draw(&mut display)
+                    .unwrap();
+    
+                    //msg.monitor.update();
+                    let ma = format!(
+                        "I: {:?}mA   Idx: {:?}",
+                        match msg.monitor.stats {
+                            Some(stat) => stat.current_ma,
+                            _ => 4242,
+                        },
+                        msg.monitor.idx
+                    );
+                    Text::with_baseline(&ma, Point::new(0, 26), self.text_normal, Baseline::Top)
+                        .draw(&mut display)
+                        .unwrap();
+    
+                    //let outlet = " 1 * * * * * ";
+    
+                    let mut outlet = String::from("");
+    
+                    for i in 1..7 {
+                        if msg.monitor.idx + 1 == i {
+                            outlet.push_str(format!(" {:?}",i).as_str());
+                        } else {
+                            outlet.push_str(" *");
+                        }
+                    }
+                    let outlet = outlet.as_str();
+                    //let outlet = " ";
+                    //for i in in 1..6 {
+                    //
+                    //}
+                    Text::with_baseline(outlet, Point::new(28, 57), self.text_small, Baseline::Top)
+                        .draw(&mut display)
+                        .unwrap();
+                    display.flush().unwrap();
+                }
+                _ => (),
+            };
+            //time for ~24fps
+            std::thread::sleep(std::time::Duration::from_millis((1000 / 24) as u64));
+        }
+    }
+
+}
+
 //https://leshow.github.io/post/rotary_encoder_hal/ thank u sir
 #[derive(PartialEq)]
 pub enum Direction {
     Clockwise,
     CounterClockwise,
+    Press,
     None,
 }
 
@@ -297,14 +375,17 @@ impl Rotary {
 pub fn encoder_service(
     dt: impl gpio::IOPin + 'static,
     clk: impl gpio::IOPin + 'static,
+    btn: impl gpio::IOPin + 'static,
     rs: Arc<Mutex<RemoteState>>,
 ) {
     //https://github.com/esp-rs/esp-idf-hal/issues/221#issuecomment-1483905314
     //this is so I don't have to hard-specify the pin in the function signature
     let mut dt = gpio::PinDriver::input(dt.downgrade()).unwrap();
     let mut clk = gpio::PinDriver::input(clk.downgrade()).unwrap();
+    let mut btn = gpio::PinDriver::input(btn.downgrade()).unwrap();
     dt.set_pull(gpio::Pull::Up).unwrap();
     clk.set_pull(gpio::Pull::Up).unwrap();
+    btn.set_pull(gpio::Pull::Up).unwrap();
 
     let mut rot = Rotary::new();
 
@@ -323,7 +404,16 @@ pub fn encoder_service(
             }
             _ => (),
         };
-
+        
+        if btn.is_low() {
+            match rs.lock() {
+                Ok(mut state) => {
+                    state.update_from_encoder(Direction::Press);
+                    std::thread::sleep(std::time::Duration::from_millis(100));
+                }
+                _ => (),
+            }
+        }
         std::thread::sleep(std::time::Duration::from_millis(5));
     }
 }
@@ -341,7 +431,6 @@ pub fn statistics_service(rs: Arc<Mutex<RemoteState>>) {
                         ){
                                 Some(rt) => Some(rt),
                                 _ => None,
-
                         }
                     }
                     Mode::Totals => {}
