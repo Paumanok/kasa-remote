@@ -1,0 +1,10 @@
+(fp_lib_table
+  (version 7)
+  (lib (name "cuh")(type "KiCad")(uri "${KIPRJMOD}/libraries/CUHS20F30_H3F/KiCADv6/footprints.pretty")(options "")(descr ""))
+  (lib (name "AP2112")(type "KiCad")(uri "${KIPRJMOD}/libraries/AP2112k_3_TRG1/footprints.pretty")(options "")(descr ""))
+  (lib (name "DMP2045U")(type "KiCad")(uri "${KIPRJMOD}/libraries/DMP2045U/footprints.pretty")(options "")(descr ""))
+  (lib (name "MAX17048")(type "KiCad")(uri "${KIPRJMOD}/libraries/MAX17048_T10/footprints.pretty")(options "")(descr ""))
+  (lib (name "MCP7381")(type "KiCad")(uri "${KIPRJMOD}/libraries/MCP7381T_2ACI_OT/footprints.pretty")(options "")(descr ""))
+  (lib (name "S2B_PH")(type "KiCad")(uri "${KIPRJMOD}/libraries/S2B_PH_SM4_TB/KiCADv6/footprints.pretty")(options "")(descr ""))
+  (lib (name "USB4105-GF-A")(type "KiCad")(uri "${KIPRJMOD}/libraries/USB4105-GF-A")(options "")(descr ""))
+)

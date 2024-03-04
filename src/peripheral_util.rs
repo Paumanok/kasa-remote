@@ -63,26 +63,34 @@ impl Monitor {
 
 #[derive(Clone)]
 struct Totals {
-    stats: Vec<kasa_protocol::Realtime>,
+    stats: Option<kasa_protocol::Realtime>,
 }
 
 impl Totals {
-    pub fn new() -> Option<Self> {
-        Some(Self {
-            stats: Self::get_stats()?,
-        })
+    pub fn new() -> Self {
+        Self {
+            stats: Self::get_stats(),
+        }
     }
 
     pub fn update(&mut self) {
         if let Some(stat) = Self::get_stats() {
-            self.stats = stat;
+            self.stats = Some(stat);
         }
     }
 
-    pub fn get_stats() -> Option<Vec<kasa_protocol::Realtime>> {
+    pub fn get_stats() -> Option<kasa_protocol::Realtime> {
         let app_config = CONFIG;
         let mut stream = TcpStream::connect(format!("{:}:9999", app_config.target_ip)).ok()?;
-        kasa_protocol::get_all_realtime(&mut stream)
+        let stats_vec = kasa_protocol::get_all_realtime(&mut stream)?;
+        Some(kasa_protocol::Realtime {
+            current_ma: stats_vec.iter().fold(0u32, |sum, rt| sum + rt.current_ma),
+            err_code: 0,
+            power_mw: stats_vec.iter().fold(0u32, |sum, rt| sum + rt.power_mw),
+            slot_id: 0,
+            total_wh: stats_vec.iter().fold(0u32, |sum, rt| sum + rt.total_wh),
+            voltage_mv: (stats_vec.iter().fold(0u32, |sum, rt| sum + rt.voltage_mv)) / stats_vec.len() as u32,
+        })
     }
 }
 
@@ -91,7 +99,7 @@ pub struct RemoteState {
     mode: Mode,
     select_mode: bool,
     monitor: Monitor,
-    totals: Option<Totals>,
+    totals: Totals,
 }
 // this wont work at all as it currently sits
 impl RemoteState {
@@ -101,7 +109,7 @@ impl RemoteState {
             mode: Mode::Monitor,
             select_mode: false,
             monitor: Monitor::new(),
-            totals: None,
+            totals: Totals::new(),
         }
     }
 
@@ -202,7 +210,7 @@ impl<'a> Display<'a> {
 
     pub fn display_service(&mut self,i2c: i2c::I2cDriver, rs: Arc<Mutex<RemoteState>>) -> Result<()> {
         println!("display_service hit");
-    
+        //this Builder is the specific SH1106 builder 
         let mut display: GraphicsMode<_> = Builder::new().connect_i2c(i2c).into();
     
         display.init().unwrap();
@@ -235,7 +243,7 @@ impl<'a> Display<'a> {
                     let modes =  ["Monitor", "Totals", "Settings"];
                     let mode1 = "Monitor";
                     let mode2 = "Totals";
-                    let mode3 = "Settings";
+                    let mode3 = "Info";
                     
     
                     let (y, text) = self.lazy_menu_setup(msg.mode, Mode::Monitor);
@@ -246,7 +254,7 @@ impl<'a> Display<'a> {
                     let (y, text) = self.lazy_menu_setup(msg.mode, Mode::Totals);
                     Text::with_baseline(
                         mode2,
-                        Point::new((6 * mode1.len() as i32) + 4, y),
+                        Point::new((6 * mode1.len() as i32) + 6, y),
                         text,
                         Baseline::Top,
                     )
@@ -256,7 +264,7 @@ impl<'a> Display<'a> {
                     let (y, text) = self.lazy_menu_setup(msg.mode, Mode::Info);
                     Text::with_baseline(
                         mode3,
-                        Point::new((6 * mode1.len() + 6 * mode2.len()) as i32 + 4, y),
+                        Point::new((6 * mode1.len() + 6 * mode2.len()) as i32 + 12, y),
                         text,
                         Baseline::Top,
                     )
@@ -264,43 +272,61 @@ impl<'a> Display<'a> {
                     .unwrap();
     
                     //msg.monitor.update();
-                    let ma = format!(
-                        "I: {:?}mA   Idx: {:?}",
-                        match msg.monitor.stats {
-                            Some(stat) => stat.current_ma,
-                            _ => 4242,
-                        },
-                        msg.monitor.idx
-                    );
-                    Text::with_baseline(&ma, Point::new(0, 26), self.text_normal, Baseline::Top)
-                        .draw(&mut display)
-                        .unwrap();
-    
-                    //let outlet = " 1 * * * * * ";
-    
-                    let mut outlet = String::from("");
-    
-                    for i in 1..7 {
-                        if msg.monitor.idx + 1 == i {
-                            outlet.push_str(format!(" {:?}",i).as_str());
-                        } else {
-                            outlet.push_str(" *");
+                    match msg.mode {
+                        Mode::Monitor => {
+                            if let Some(stats) = msg.monitor.stats {
+                                let ma = format!(
+                                    "I:{:>4}mA   P: {:>4}mW\r\n\r\nPt: {:>3}Wh",
+                                    stats.current_ma,
+                                    stats.power_mw,
+                                    stats.total_wh,
+                                );
+                                Text::with_baseline(&ma, Point::new(0, 18), self.text_normal, Baseline::Top)
+                                    .draw(&mut display)
+                                    .unwrap();
+
+                                let mut outlet = String::from("");
+                                for i in 1..7 {
+                                    if msg.monitor.idx + 1 == i {
+                                        outlet.push_str(format!(" {:?}",i).as_str());
+                                    } else {
+                                        outlet.push_str(" *");
+                                    }
+                                }
+                                let outlet = outlet.as_str();
+                                
+                                Text::with_baseline(outlet, Point::new(28, 57), self.text_small, Baseline::Top)
+                                    .draw(&mut display)
+                                    .unwrap();
+                            };
                         }
+                        Mode::Totals => {
+
+                            if let Some(stats) = msg.totals.stats {
+                                let ma = format!(
+                                    "I:{:>4}mA   P: {:>4}mW\r\n\r\nPt: {:>3}Wh",
+                                    stats.current_ma,
+                                    stats.power_mw,
+                                    stats.total_wh,
+                                );
+                                Text::with_baseline(&ma, Point::new(0, 18), self.text_normal, Baseline::Top)
+                                    .draw(&mut display)
+                                    .unwrap();
+                            } else {
+                                println!("stats none in totals");
+                            }
+                        }
+                        _ => (),
                     }
-                    let outlet = outlet.as_str();
-                    //let outlet = " ";
-                    //for i in in 1..6 {
-                    //
-                    //}
-                    Text::with_baseline(outlet, Point::new(28, 57), self.text_small, Baseline::Top)
-                        .draw(&mut display)
-                        .unwrap();
+    
                     display.flush().unwrap();
+    
+    
                 }
                 _ => (),
             };
             //time for ~24fps
-            std::thread::sleep(std::time::Duration::from_millis((1000 / 24) as u64));
+            std::thread::sleep(std::time::Duration::from_millis((1000 / 12) as u64));
         }
     }
 
@@ -431,9 +457,15 @@ pub fn statistics_service(rs: Arc<Mutex<RemoteState>>) {
                         ){
                                 Some(rt) => Some(rt),
                                 _ => None,
-                        }
+                        };
+                        
                     }
-                    Mode::Totals => {}
+                    Mode::Totals => {
+                        state.totals.update();
+                        //longer wait since this takes longer and is bogging up the thread doing it
+                        //too often
+                        //std::thread::sleep(std::time::Duration::from_millis(5000));
+                    }
                     Mode::Info => {}
                 },
                 _ => (),

@@ -1,0 +1,11 @@
+(sym_lib_table
+  (version 7)
+  (lib (name "ESP32-S3-WROOM-1-N4")(type "KiCad")(uri "${KIPRJMOD}/libraries/ESP32-S3-WROOM-1-N4/ESP32-S3-WROOM-1-N4.kicad_sym")(options "")(descr ""))
+  (lib (name "USB4105-GF-A")(type "KiCad")(uri "${KIPRJMOD}/libraries/USB4105-GF-A/USB4105-GF-A.kicad_sym")(options "")(descr ""))
+  (lib (name "MCP7381")(type "KiCad")(uri "${KIPRJMOD}/libraries/MCP7381T_2ACI_OT/2024-02-27_00-22-55.kicad_sym")(options "")(descr ""))
+  (lib (name "max17048")(type "KiCad")(uri "${KIPRJMOD}/libraries/MAX17048_T10/2024-02-27_00-23-59.kicad_sym")(options "")(descr ""))
+  (lib (name "dmp2045")(type "KiCad")(uri "${KIPRJMOD}/libraries/DMP2045U/2024-02-27_00-24-22.kicad_sym")(options "")(descr ""))
+  (lib (name "ap2112")(type "KiCad")(uri "${KIPRJMOD}/libraries/AP2112k_3_TRG1/2024-02-27_00-24-44.kicad_sym")(options "")(descr ""))
+  (lib (name "CUH")(type "KiCad")(uri "${KIPRJMOD}/libraries/CUHS20F30_H3F/KiCADv6/2024-02-27_23-55-33.kicad_sym")(options "")(descr ""))
+  (lib (name "JST-header")(type "KiCad")(uri "${KIPRJMOD}/libraries/S2B_PH_SM4_TB/KiCADv6/2024-03-02_18-28-54.kicad_sym")(options "")(descr ""))
+)

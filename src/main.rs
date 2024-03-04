@@ -82,13 +82,13 @@ fn main() -> Result<()> {
     ThreadSpawnConfiguration {
         name: Some("stats_service\0".as_bytes()),
         stack_size: 10000,
-        priority: 16,
+        priority: 12,
         ..Default::default()
     }
     .set()
     .unwrap();
 
-    let _d_thread = thread::Builder::new().stack_size(10000).spawn(move || {
+    let _s_thread = thread::Builder::new().stack_size(10000).spawn(move || {
         let _ = peripheral_util::statistics_service(rs_stat);
     });
 
@@ -102,7 +102,6 @@ fn main() -> Result<()> {
     .unwrap();
 
     let _d_thread = thread::Builder::new().stack_size(10000).spawn(move || {
-        //let _ = peripheral_util::display_service(i2c, rs_disp);
         let _ = peripheral_util::Display::new().display_service(i2c, rs_disp);
     });
 
@@ -117,7 +116,6 @@ fn main() -> Result<()> {
 
     let _e_thread = thread::Builder::new().stack_size(3000).spawn(move || {
         let _ = peripheral_util::encoder_service(
-            //enc_a.into(), enc_b.into(), rs_enc);
             enc_dt, enc_clk, enc_button, rs_enc);
     });
 
