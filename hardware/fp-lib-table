@@ -7,4 +7,5 @@
   (lib (name "MCP7381")(type "KiCad")(uri "${KIPRJMOD}/libraries/MCP7381T_2ACI_OT/footprints.pretty")(options "")(descr ""))
   (lib (name "S2B_PH")(type "KiCad")(uri "${KIPRJMOD}/libraries/S2B_PH_SM4_TB/KiCADv6/footprints.pretty")(options "")(descr ""))
   (lib (name "USB4105-GF-A")(type "KiCad")(uri "${KIPRJMOD}/libraries/USB4105-GF-A")(options "")(descr ""))
+  (lib (name "ESP32-S3-WROOM-1-N4")(type "KiCad")(uri "${KIPRJMOD}/libraries/ESP32-S3-WROOM-1-N4")(options "")(descr ""))
 )
