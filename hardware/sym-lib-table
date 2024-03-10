@@ -8,4 +8,5 @@
   (lib (name "ap2112")(type "KiCad")(uri "${KIPRJMOD}/libraries/AP2112k_3_TRG1/2024-02-27_00-24-44.kicad_sym")(options "")(descr ""))
   (lib (name "CUH")(type "KiCad")(uri "${KIPRJMOD}/libraries/CUHS20F30_H3F/KiCADv6/2024-02-27_23-55-33.kicad_sym")(options "")(descr ""))
   (lib (name "JST-header")(type "KiCad")(uri "${KIPRJMOD}/libraries/S2B_PH_SM4_TB/KiCADv6/2024-03-02_18-28-54.kicad_sym")(options "")(descr ""))
+  (lib (name "CSS-1210TB")(type "KiCad")(uri "${KIPRJMOD}/libraries/CSS-1210tb/KiCADv6/2024-03-09_15-39-48.kicad_sym")(options "")(descr ""))
 )
