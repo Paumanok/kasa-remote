@@ -6494,6 +6494,9 @@
   (gr_text "Matthew Smith\n2024" (at 156.505914 62.689256) (layer "B.SilkS") (tstamp 4877d28d-fb29-4c0f-95d4-aa5aac98aa78)
     (effects (font (size 1 1) (thickness 0.125)) (justify left bottom mirror))
   )
+  (gr_text "WayWayWay" (at 156 66) (layer "B.SilkS") (tstamp a097adcc-84eb-4f2b-b375-4c32641d6408)
+    (effects (font (size 1 1) (thickness 0.2) bold) (justify left bottom mirror))
+  )
 
   (segment (start 147.7824 111.9909) (end 149.8157 114.0242) (width 0.5) (layer "B.Cu") (net 1) (tstamp 0287b86b-fa65-4bcc-a262-b43a333c02bf))
   (segment (start 149.5146 111.645299) (end 149.5146 110.0164) (width 0.3) (layer "B.Cu") (net 1) (tstamp 09c14ced-2a8c-4a97-a540-8b6277affa7a))

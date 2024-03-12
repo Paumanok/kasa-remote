@@ -66,7 +66,6 @@
         "silk_edge_clearance|124500000|60194825|24ed3ca5-ac86-4d6d-a991-bb0ea6424d4b|8cff6e2b-c978-45d2-94cc-4d0e97b64471",
         "silk_edge_clearance|130425400|130750000|d0df1669-47fb-4f6c-a8f9-0a615943e07c|080d9a1b-9bc7-413f-b54f-31697d707b77",
         "silk_edge_clearance|139365400|130750000|d0df1669-47fb-4f6c-a8f9-0a615943e07c|3e864d38-fd18-4253-a117-cf11a191d24f",
-        "silk_over_copper|129275680|58823225|0b86817e-8a7d-4401-bb21-d556a6bd76fe|00000000-0000-0000-0000-000000000000",
         "solder_mask_bridge|131995400|123794500|0e602fa6-3213-4eb0-9ecb-f5746afc2023|6a28ae5a-8bf1-4aa4-a161-2c250dee82e8",
         "solder_mask_bridge|132795400|123794500|6a28ae5a-8bf1-4aa4-a161-2c250dee82e8|9fd96a2c-9a9e-42fa-9b26-61a1e6af1922",
         "solder_mask_bridge|133495400|124064500|e2578496-2202-4cc3-8c80-d96d608521cf|9fd96a2c-9a9e-42fa-9b26-61a1e6af1922",
@@ -134,7 +133,7 @@
       },
       "rules": {
         "max_error": 0.005,
-        "min_clearance": 0.0,
+        "min_clearance": 0.15,
         "min_connection": 0.0,
         "min_copper_edge_clearance": 0.0,
         "min_hole_clearance": 0.25,
