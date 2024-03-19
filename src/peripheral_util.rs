@@ -12,7 +12,7 @@ use std::net::TcpStream;
 use std::sync::{ Arc, Mutex};
 
 use rust_kasa::kasa_protocol;
-use sh1106::{prelude::*, Builder};
+use sh1106::{prelude::*, Builder, displayrotation::DisplayRotation};
 
 
 
@@ -211,7 +211,7 @@ impl<'a> Display<'a> {
     pub fn display_service(&mut self,i2c: i2c::I2cDriver, rs: Arc<Mutex<RemoteState>>) -> Result<()> {
         println!("display_service hit");
         //this Builder is the specific SH1106 builder 
-        let mut display: GraphicsMode<_> = Builder::new().connect_i2c(i2c).into();
+        let mut display: GraphicsMode<_> = Builder::new().with_rotation(DisplayRotation::Rotate180).connect_i2c(i2c).into();
     
         display.init().unwrap();
         display.flush().unwrap();

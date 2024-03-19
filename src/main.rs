@@ -58,7 +58,7 @@ fn main() -> Result<()> {
         }
     };
 
-    let mut button = gpio::PinDriver::input(peripherals.pins.gpio19).unwrap();
+    let mut button = gpio::PinDriver::input(peripherals.pins.gpio12).unwrap();
     button.set_pull(gpio::Pull::Up).unwrap();
 
     let enc_dt = peripherals.pins.gpio26;
@@ -66,8 +66,10 @@ fn main() -> Result<()> {
     let enc_button = peripherals.pins.gpio14;
 
     let i2c = peripherals.i2c0;
-    let sda = peripherals.pins.gpio22;
-    let scl = peripherals.pins.gpio21;
+   // let sda = peripherals.pins.gpio22;
+   // let scl = peripherals.pins.gpio21;
+    let sda = peripherals.pins.gpio17;
+    let scl = peripherals.pins.gpio18;
 
     let config = i2c::I2cConfig::new().baudrate(400.kHz().into());
     let i2c = i2c::I2cDriver::new(i2c, sda, scl, &config)?;
@@ -81,7 +83,7 @@ fn main() -> Result<()> {
     //https://github.com/esp-rs/esp-idf-hal/issues/228#issuecomment-1676035648
     ThreadSpawnConfiguration {
         name: Some("stats_service\0".as_bytes()),
-        stack_size: 10000,
+        stack_size: 5000,
         priority: 12,
         ..Default::default()
     }
@@ -94,7 +96,7 @@ fn main() -> Result<()> {
 
     ThreadSpawnConfiguration {
         name: Some("display_service\0".as_bytes()),
-        stack_size: 10000,
+        stack_size: 5000,
         priority: 14,
         ..Default::default()
     }
