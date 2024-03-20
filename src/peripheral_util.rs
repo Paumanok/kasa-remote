@@ -1,20 +1,18 @@
 //
 //
-use anyhow::{Result};
+use anyhow::Result;
 use embedded_graphics::{
-    mono_font::{ascii::FONT_5X8, ascii::FONT_6X10, MonoTextStyleBuilder, MonoTextStyle},
+    mono_font::{ascii::FONT_5X8, ascii::FONT_6X10, MonoTextStyle, MonoTextStyleBuilder},
     pixelcolor::BinaryColor,
     prelude::*,
     text::{Baseline, Text},
 };
 use esp_idf_svc::hal::{gpio, i2c};
 use std::net::TcpStream;
-use std::sync::{ Arc, Mutex};
+use std::sync::{Arc, Mutex};
 
 use rust_kasa::kasa_protocol;
-use sh1106::{prelude::*, Builder, displayrotation::DisplayRotation};
-
-
+use sh1106::{displayrotation::DisplayRotation, prelude::*, Builder};
 
 #[toml_cfg::toml_config]
 pub struct Config {
@@ -26,15 +24,12 @@ pub struct Config {
     target_ip: &'static str,
 }
 
-#[derive(Clone, Copy)]
-#[derive(PartialEq)]
-#[derive(Debug)]
+#[derive(Clone, Copy, PartialEq, Debug)]
 enum Mode {
     Monitor,
     Totals,
     Info,
 }
-
 
 #[derive(Clone)]
 struct Monitor {
@@ -89,7 +84,8 @@ impl Totals {
             power_mw: stats_vec.iter().fold(0u32, |sum, rt| sum + rt.power_mw),
             slot_id: 0,
             total_wh: stats_vec.iter().fold(0u32, |sum, rt| sum + rt.total_wh),
-            voltage_mv: (stats_vec.iter().fold(0u32, |sum, rt| sum + rt.voltage_mv)) / stats_vec.len() as u32,
+            voltage_mv: (stats_vec.iter().fold(0u32, |sum, rt| sum + rt.voltage_mv))
+                / stats_vec.len() as u32,
         })
     }
 }
@@ -139,32 +135,28 @@ impl RemoteState {
 
     //this is absolutely disgusting
     pub fn update_from_encoder(&mut self, dir: Direction) {
-       
         if self.select_mode {
-           self.update_mode(dir);
+            self.update_mode(dir);
         } else {
-
             match self.mode {
-                Mode::Monitor => {
-                    match dir {
-                        Direction::Clockwise => {
-                            if self.monitor.idx < 5 {
-                                self.monitor.idx += 1;
-                                println!("{:?}", self.monitor.idx);
-                            }
+                Mode::Monitor => match dir {
+                    Direction::Clockwise => {
+                        if self.monitor.idx < 5 {
+                            self.monitor.idx += 1;
+                            println!("{:?}", self.monitor.idx);
                         }
-                        Direction::CounterClockwise => {
-                            if self.monitor.idx > 0 {
-                                self.monitor.idx -= 1;
-                                println!("{:?}", self.monitor.idx);
-                            }
-                        }
-                        Direction::Press => {
-                            self.select_mode = !self.select_mode;
-                        }
-                        _ => (),
                     }
-                }
+                    Direction::CounterClockwise => {
+                        if self.monitor.idx > 0 {
+                            self.monitor.idx -= 1;
+                            println!("{:?}", self.monitor.idx);
+                        }
+                    }
+                    Direction::Press => {
+                        self.select_mode = !self.select_mode;
+                    }
+                    _ => (),
+                },
                 Mode::Totals => {}
                 Mode::Info => {}
             }
@@ -172,15 +164,13 @@ impl RemoteState {
     }
 }
 
-
 pub struct Display<'a> {
-    text_normal: MonoTextStyle<'a,BinaryColor>,
-    text_small: MonoTextStyle<'a,BinaryColor>,
+    text_normal: MonoTextStyle<'a, BinaryColor>,
+    text_small: MonoTextStyle<'a, BinaryColor>,
 }
 
 impl<'a> Display<'a> {
-    pub fn new() -> Self{
-        
+    pub fn new() -> Self {
         let text_normal = MonoTextStyleBuilder::new()
             .font(&FONT_6X10)
             .text_color(BinaryColor::On)
@@ -196,26 +186,33 @@ impl<'a> Display<'a> {
         }
     }
 
-    fn lazy_menu_setup(&mut self, cur_mode: Mode, drawing_mode: Mode) -> 
-    (i32,  MonoTextStyle<'a,BinaryColor>) {
+    fn lazy_menu_setup(
+        &mut self,
+        cur_mode: Mode,
+        drawing_mode: Mode,
+    ) -> (i32, MonoTextStyle<'a, BinaryColor>) {
         if cur_mode == drawing_mode {
-
-            return (4, self.text_normal)
+            return (4, self.text_normal);
         } else {
-            return (2, self.text_small)
+            return (2, self.text_small);
         }
-
     }
 
-
-    pub fn display_service(&mut self,i2c: i2c::I2cDriver, rs: Arc<Mutex<RemoteState>>) -> Result<()> {
+    pub fn display_service(
+        &mut self,
+        i2c: i2c::I2cDriver,
+        rs: Arc<Mutex<RemoteState>>,
+    ) -> Result<()> {
         println!("display_service hit");
-        //this Builder is the specific SH1106 builder 
-        let mut display: GraphicsMode<_> = Builder::new().with_rotation(DisplayRotation::Rotate180).connect_i2c(i2c).into();
-    
+        //this Builder is the specific SH1106 builder
+        let mut display: GraphicsMode<_> = Builder::new()
+            .with_rotation(DisplayRotation::Rotate180)
+            .connect_i2c(i2c)
+            .into();
+
         display.init().unwrap();
         display.flush().unwrap();
-    
+
         //let text_style = MonoTextStyleBuilder::new()
         //    .font(&FONT_6X10)
         //    .text_color(BinaryColor::On)
@@ -224,28 +221,32 @@ impl<'a> Display<'a> {
         //    .font(&FONT_5X8)
         //    .text_color(BinaryColor::On)
         //    .build();
-        Text::with_baseline("Hello world!", Point::zero(), self.text_normal, Baseline::Top)
-            .draw(&mut display)
-            .unwrap();
-    
+        Text::with_baseline(
+            "Hello world!",
+            Point::zero(),
+            self.text_normal,
+            Baseline::Top,
+        )
+        .draw(&mut display)
+        .unwrap();
+
         //let info = format!("ip: {:?}",(*_wifi).sta_netif().get_ip_info()?.ip);
         //
         //Text::with_baseline(&info, Point::new(0, 16), text_style, Baseline::Top)
         //    .draw(&mut display)
         //    .unwrap();
-    
+
         display.flush().unwrap();
-    
+
         loop {
             match rs.lock() {
                 Ok(msg) => {
                     display.clear();
-                    let modes =  ["Monitor", "Totals", "Settings"];
+                    let modes = ["Monitor", "Totals", "Settings"];
                     let mode1 = "Monitor";
                     let mode2 = "Totals";
                     let mode3 = "Info";
-                    
-    
+
                     let (y, text) = self.lazy_menu_setup(msg.mode, Mode::Monitor);
                     Text::with_baseline(mode1, Point::new(0, y), text, Baseline::Top)
                         .draw(&mut display)
@@ -260,7 +261,7 @@ impl<'a> Display<'a> {
                     )
                     .draw(&mut display)
                     .unwrap();
-    
+
                     let (y, text) = self.lazy_menu_setup(msg.mode, Mode::Info);
                     Text::with_baseline(
                         mode3,
@@ -270,58 +271,66 @@ impl<'a> Display<'a> {
                     )
                     .draw(&mut display)
                     .unwrap();
-    
+
                     //msg.monitor.update();
                     match msg.mode {
                         Mode::Monitor => {
                             if let Some(stats) = msg.monitor.stats {
                                 let ma = format!(
                                     "I:{:>4}mA   P: {:>4}mW\r\n\r\nPt: {:>3}Wh",
-                                    stats.current_ma,
-                                    stats.power_mw,
-                                    stats.total_wh,
+                                    stats.current_ma, stats.power_mw, stats.total_wh,
                                 );
-                                Text::with_baseline(&ma, Point::new(0, 18), self.text_normal, Baseline::Top)
-                                    .draw(&mut display)
-                                    .unwrap();
+                                Text::with_baseline(
+                                    &ma,
+                                    Point::new(0, 18),
+                                    self.text_normal,
+                                    Baseline::Top,
+                                )
+                                .draw(&mut display)
+                                .unwrap();
 
                                 let mut outlet = String::from("");
                                 for i in 1..7 {
                                     if msg.monitor.idx + 1 == i {
-                                        outlet.push_str(format!(" {:?}",i).as_str());
+                                        outlet.push_str(format!(" {:?}", i).as_str());
                                     } else {
                                         outlet.push_str(" *");
                                     }
                                 }
                                 let outlet = outlet.as_str();
-                                
-                                Text::with_baseline(outlet, Point::new(28, 57), self.text_small, Baseline::Top)
-                                    .draw(&mut display)
-                                    .unwrap();
+
+                                Text::with_baseline(
+                                    outlet,
+                                    Point::new(28, 57),
+                                    self.text_small,
+                                    Baseline::Top,
+                                )
+                                .draw(&mut display)
+                                .unwrap();
                             };
                         }
                         Mode::Totals => {
-
                             if let Some(stats) = msg.totals.stats {
                                 let ma = format!(
                                     "I:{:>4}mA   P: {:>4}mW\r\n\r\nPt: {:>3}Wh",
-                                    stats.current_ma,
-                                    stats.power_mw,
-                                    stats.total_wh,
+                                    stats.current_ma, stats.power_mw, stats.total_wh,
                                 );
-                                Text::with_baseline(&ma, Point::new(0, 18), self.text_normal, Baseline::Top)
-                                    .draw(&mut display)
-                                    .unwrap();
+                                Text::with_baseline(
+                                    &ma,
+                                    Point::new(0, 18),
+                                    self.text_normal,
+                                    Baseline::Top,
+                                )
+                                .draw(&mut display)
+                                .unwrap();
                             } else {
                                 println!("stats none in totals");
                             }
                         }
                         _ => (),
                     }
-    
+
                     display.flush().unwrap();
-    
-    
                 }
                 _ => (),
             };
@@ -329,7 +338,6 @@ impl<'a> Display<'a> {
             std::thread::sleep(std::time::Duration::from_millis((1000 / 12) as u64));
         }
     }
-
 }
 
 //https://leshow.github.io/post/rotary_encoder_hal/ thank u sir
@@ -430,7 +438,7 @@ pub fn encoder_service(
             }
             _ => (),
         };
-        
+
         if btn.is_low() {
             match rs.lock() {
                 Ok(mut state) => {
@@ -444,6 +452,54 @@ pub fn encoder_service(
     }
 }
 
+pub fn button_service(btn_gpio: Vec<impl gpio::IOPin + 'static>, rs: Arc<Mutex<RemoteState>>) {
+    let app_config = CONFIG;
+    if btn_gpio.len() != 9 {
+        return;
+    }
+
+    let mut buttons: Vec<_> = btn_gpio
+        .into_iter()
+        .map(|x| {
+            gpio::PinDriver::input(x.downgrade())
+                .unwrap()
+        })
+        .collect::<Vec<_>>();
+
+    for b in &mut buttons {
+        b.set_pull(gpio::Pull::Up).unwrap();
+    }
+    log::info!("after pull up set");
+    loop {
+//      for (idx, b) in buttons.iter().enumerate() {
+        for idx in 0..buttons.len() {
+            //log::info!("idx at {:}", idx);
+            if buttons[idx].is_low() {
+                if idx <= 2 {
+                   match rs.lock() {
+                        Ok(mut state) => {
+                            state.update_from_encoder( match idx {
+                                0 => Direction::CounterClockwise,
+                                1 => Direction::Press,
+                                2 => Direction::Clockwise,
+                                _ => Direction::None,
+                            })
+                        },
+                        _ => (),
+                    };
+                    // do control button stuff
+                } else {
+                    if let Ok(mut stream) = TcpStream::connect(format!("{:}:9999", app_config.target_ip)) {
+                        let _res = kasa_protocol::toggle_relay_by_idx(&mut stream, idx - 3);
+                    }
+                }
+                std::thread::sleep(std::time::Duration::from_millis(100));
+            }
+        }
+
+    }
+}
+
 pub fn statistics_service(rs: Arc<Mutex<RemoteState>>) {
     let app_config = CONFIG;
     loop {
@@ -454,11 +510,10 @@ pub fn statistics_service(rs: Arc<Mutex<RemoteState>>) {
                         state.monitor.stats = match kasa_protocol::get_realtime_by_idx(
                             &mut stream,
                             state.monitor.idx as usize,
-                        ){
-                                Some(rt) => Some(rt),
-                                _ => None,
+                        ) {
+                            Some(rt) => Some(rt),
+                            _ => None,
                         };
-                        
                     }
                     Mode::Totals => {
                         state.totals.update();

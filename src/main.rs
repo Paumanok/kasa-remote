@@ -58,16 +58,28 @@ fn main() -> Result<()> {
         }
     };
 
-    let mut button = gpio::PinDriver::input(peripherals.pins.gpio12).unwrap();
-    button.set_pull(gpio::Pull::Up).unwrap();
+    //let mut button = gpio::PinDriver::input(peripherals.pins.gpio12).unwrap();
+    //button.set_pull(gpio::Pull::Up).unwrap();
 
-    let enc_dt = peripherals.pins.gpio26;
-    let enc_clk = peripherals.pins.gpio27;
-    let enc_button = peripherals.pins.gpio14;
+    //let enc_dt = peripherals.pins.gpio26;
+    //let enc_clk = peripherals.pins.gpio27;
+    //let enc_button = peripherals.pins.gpio14;
+    let buttons: Vec<gpio::AnyIOPin> = vec![
+        peripherals.pins.gpio46.into(), //1
+        peripherals.pins.gpio9.into(),  
+        peripherals.pins.gpio11.into(),
+        peripherals.pins.gpio12.into(),
+        peripherals.pins.gpio13.into(),
+        peripherals.pins.gpio14.into(),
+        peripherals.pins.gpio21.into(),
+        peripherals.pins.gpio47.into(),
+        peripherals.pins.gpio48.into(), //9
+    ];
+        
 
     let i2c = peripherals.i2c0;
-   // let sda = peripherals.pins.gpio22;
-   // let scl = peripherals.pins.gpio21;
+    // let sda = peripherals.pins.gpio22;
+    // let scl = peripherals.pins.gpio21;
     let sda = peripherals.pins.gpio17;
     let scl = peripherals.pins.gpio18;
 
@@ -83,7 +95,7 @@ fn main() -> Result<()> {
     //https://github.com/esp-rs/esp-idf-hal/issues/228#issuecomment-1676035648
     ThreadSpawnConfiguration {
         name: Some("stats_service\0".as_bytes()),
-        stack_size: 5000,
+        stack_size: 10000,
         priority: 12,
         ..Default::default()
     }
@@ -96,7 +108,7 @@ fn main() -> Result<()> {
 
     ThreadSpawnConfiguration {
         name: Some("display_service\0".as_bytes()),
-        stack_size: 5000,
+        stack_size: 10000,
         priority: 14,
         ..Default::default()
     }
@@ -109,27 +121,26 @@ fn main() -> Result<()> {
 
     ThreadSpawnConfiguration {
         name: Some("encoder_service\0".as_bytes()),
-        stack_size: 3000,
+        stack_size: 10000,
         priority: 15,
         ..Default::default()
     }
     .set()
     .unwrap();
 
-    let _e_thread = thread::Builder::new().stack_size(3000).spawn(move || {
-        let _ = peripheral_util::encoder_service(
-            enc_dt, enc_clk, enc_button, rs_enc);
+    let _e_thread = thread::Builder::new().stack_size(10000).spawn(move || {
+        //let _ = peripheral_util::encoder_service(enc_dt, enc_clk, enc_button, rs_enc);
+        let _ = peripheral_util::button_service(buttons, rs_enc);
     });
 
     log::info!("Hello, after thread spawn");
 
-
     loop {
-        if button.is_low() {
-            let _ = toggle();
-            println!("hit");
-            std::thread::sleep(std::time::Duration::from_millis(500));
-        }
+        //if button.is_low() {
+        //    let _ = toggle();
+        //    println!("hit");
+        //    std::thread::sleep(std::time::Duration::from_millis(500));
+        //}
 
         if !_wifi.is_connected().unwrap() {
             log::info!("wifi disconnected");
