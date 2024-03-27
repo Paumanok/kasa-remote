@@ -7,7 +7,6 @@ use esp_idf_svc::{
     wifi::{AuthMethod, BlockingWifi, ClientConfiguration, Configuration, EspWifi},
 };
 
-
 pub fn wifi(
     ssid: &str,
     pass: &str,
@@ -32,8 +31,7 @@ pub fn wifi(
     log::info!("Starting wifi...");
 
     wifi.start()?;
-    
-    
+
     let channel = if scan {
         log::info!("Scanning...");
 
@@ -44,7 +42,8 @@ pub fn wifi(
         let channel = if let Some(ours) = ours {
             log::info!(
                 "Found configured access point {} on channel {}",
-                ssid, ours.channel
+                ssid,
+                ours.channel
             );
             Some(ours.channel)
         } else {
@@ -58,7 +57,6 @@ pub fn wifi(
     } else {
         None
     };
-
 
     wifi.set_configuration(&Configuration::Client(ClientConfiguration {
         ssid: ssid.into(),

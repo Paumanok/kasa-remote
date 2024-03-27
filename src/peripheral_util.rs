@@ -4,13 +4,12 @@
 use std::net::TcpStream;
 use std::sync::{Arc, Mutex};
 
-use rust_kasa::kasa_protocol;
 use crate::peripheral_util::rotary::Direction;
+use rust_kasa::kasa_protocol;
 
-pub mod rotary;
 pub mod buttons;
 pub mod display;
-
+pub mod rotary;
 
 #[toml_cfg::toml_config]
 pub struct Config {
@@ -161,10 +160,6 @@ impl RemoteState {
         }
     }
 }
-
-
-
-
 
 pub fn statistics_service(rs: Arc<Mutex<RemoteState>>) {
     let app_config = CONFIG;

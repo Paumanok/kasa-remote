@@ -1,4 +1,3 @@
-
 use anyhow::Result;
 use embedded_graphics::{
     mono_font::{ascii::FONT_5X8, ascii::FONT_6X10, MonoTextStyle, MonoTextStyleBuilder},
@@ -10,7 +9,7 @@ use esp_idf_svc::hal::i2c;
 use sh1106::{displayrotation::DisplayRotation, prelude::*, Builder};
 use std::sync::{Arc, Mutex};
 
-use crate::peripheral_util::{RemoteState, Mode};
+use crate::peripheral_util::{Mode, RemoteState};
 
 pub struct Display<'a> {
     text_normal: MonoTextStyle<'a, BinaryColor>,

@@ -1,10 +1,10 @@
+use crate::peripheral_util::{buttons, display::Display};
 use anyhow::{bail, Result};
 use esp_idf_svc::eventloop::EspSystemEventLoop;
 use esp_idf_svc::hal::prelude::Peripherals;
 use esp_idf_svc::hal::prelude::*;
 use esp_idf_svc::hal::task::thread::ThreadSpawnConfiguration;
 use esp_idf_svc::hal::{gpio, i2c};
-use crate::peripheral_util::{buttons, display::Display};
 //use std::net::TcpStream;
 use std::sync::{Arc, Mutex};
 use std::thread;
@@ -12,6 +12,7 @@ use std::thread;
 
 use rust_kasa::kasa_protocol;
 
+pub mod module_runner;
 pub mod peripheral_util;
 pub mod wifi;
 /// This configuration is picked up at compile time by `build.rs` from the
@@ -25,7 +26,6 @@ pub struct Config {
     #[default("127.0.0.1")]
     target_ip: &'static str,
 }
-
 
 fn main() -> Result<()> {
     // It is necessary to call this function once. Otherwise some patches to the runtime
@@ -63,7 +63,7 @@ fn main() -> Result<()> {
     //let enc_button = peripherals.pins.gpio14;
     let buttons: Vec<gpio::AnyIOPin> = vec![
         peripherals.pins.gpio46.into(), //1
-        peripherals.pins.gpio9.into(),  
+        peripherals.pins.gpio9.into(),
         peripherals.pins.gpio11.into(),
         peripherals.pins.gpio12.into(),
         peripherals.pins.gpio13.into(),
@@ -72,7 +72,6 @@ fn main() -> Result<()> {
         peripherals.pins.gpio47.into(),
         peripherals.pins.gpio48.into(), //9
     ];
-        
 
     let i2c = peripherals.i2c0;
     // let sda = peripherals.pins.gpio22;

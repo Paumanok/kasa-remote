@@ -1,7 +1,6 @@
+use crate::peripheral_util::RemoteState;
 use esp_idf_svc::hal::gpio;
 use std::sync::{Arc, Mutex};
-use crate::peripheral_util::RemoteState;
-
 
 //https://leshow.github.io/post/rotary_encoder_hal/ thank u sir
 #[derive(PartialEq)]
