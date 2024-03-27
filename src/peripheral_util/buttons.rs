@@ -47,13 +47,13 @@ fn button_action(btn_idx: usize, rs: &Arc<Mutex<RemoteState>>) {
 
 fn button_action_generic(btn_idx: usize, btn_state: &Buttons) {
     if let Some(tx) = &btn_state.action_tx{
-        
+        log::info!("sending from buttons"); 
         tx.send(btn_idx).unwrap();
     }
 }
 
-pub fn button_service(btn_gpio: Vec<impl gpio::IOPin + 'static>, rs: Arc<Mutex<RemoteState>>) {
-    let mut btns = Buttons::new(None);
+pub fn button_service(btn_gpio: Vec<impl gpio::IOPin + 'static>, but_tx: Sender<usize>) {
+    let mut btns = Buttons::new(Some(but_tx));
 
     if btn_gpio.len() != 9 {
         return;
@@ -77,7 +77,7 @@ pub fn button_service(btn_gpio: Vec<impl gpio::IOPin + 'static>, rs: Arc<Mutex<R
                     btns.btns[idx].last_state = true;
                     log::info!("button {:} pressed", idx);
 
-                    button_action(idx, &rs);
+                    button_action_generic(idx, &btns);
                 }
                 //std::thread::sleep(std::time::Duration::from_millis(100));
             } else {
