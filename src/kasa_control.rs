@@ -1,23 +1,10 @@
-use std::net::TcpStream;
-use crate::module_runner::{ RemoteModule, RemoteMessage };
-use std::mem::replace;
-use crate::peripheral_util::display::{ DisplayMessage, DisplayLine, TextSize };
-use std::sync::mpsc;
+use crate::module_runner::{RemoteMessage, RemoteModule};
+use crate::peripheral_util::display::{DisplayLine, DisplayMessage, TextSize};
+use crate::CONFIG;
 use rust_kasa::kasa_protocol;
-use std::time::Duration;
-
-
-
-#[toml_cfg::toml_config]
-pub struct Config {
-    #[default("blah")]
-    wifi_ssid: &'static str,
-    #[default("blah")]
-    wifi_psk: &'static str,
-    #[default("127.0.0.1")]
-    target_ip: &'static str,
-}
-
+use std::mem::replace;
+use std::net::TcpStream;
+use std::sync::mpsc;
 
 pub struct KasaControl {
     pub receiver: Option<mpsc::Receiver<RemoteMessage>>,
@@ -30,14 +17,11 @@ pub struct KasaControl {
 }
 
 impl KasaControl {
-
-
     pub fn get_target_stat(idx: u8) -> Option<kasa_protocol::Realtime> {
         let app_config = CONFIG;
         let mut stream = TcpStream::connect(format!("{:}:9999", app_config.target_ip)).ok()?;
         kasa_protocol::get_realtime_by_idx(&mut stream, idx.into())
     }
-
 
     pub fn get_all_stats() -> Option<kasa_protocol::Realtime> {
         let app_config = CONFIG;
@@ -55,7 +39,7 @@ impl KasaControl {
     }
 
     fn display_line_builder() -> DisplayMessage {
-       DisplayMessage {
+        DisplayMessage {
             lines: vec![
                 DisplayLine {
                     line: "line 1".to_string(),
@@ -69,15 +53,26 @@ impl KasaControl {
                     x_offset: 28,
                     y_offset: 40,
                 },
-            ]
+            ],
         }
     }
 
+    fn toggle_by_idx(btn_idx: u32) {
+        let app_config = CONFIG;
+        if btn_idx > 2 && btn_idx < 9 {
+            if let Ok(mut stream) = TcpStream::connect(format!("{:}:9999", app_config.target_ip)) {
+                let _res = kasa_protocol::toggle_relay_by_idx(&mut stream, (btn_idx - 3) as usize);
+            }
+        }
+    }
 }
 
 impl RemoteModule for KasaControl {
-
-    fn set_channel(&mut self, receiver: mpsc::Receiver<RemoteMessage>, sender: mpsc::Sender<DisplayMessage>) {
+    fn set_channel(
+        &mut self,
+        receiver: mpsc::Receiver<RemoteMessage>,
+        sender: mpsc::Sender<DisplayMessage>,
+    ) {
         log::info!("setting channel");
         self.receiver = Some(receiver);
         self.sender = Some(sender);
@@ -91,7 +86,6 @@ impl RemoteModule for KasaControl {
 
     fn run(&mut self) {
         loop {
-
             std::thread::sleep(std::time::Duration::from_millis(100));
 
             if let Some(rx) = &self.receiver {
@@ -99,18 +93,16 @@ impl RemoteModule for KasaControl {
                     Ok(msg) => {
                         if msg.status == 10 {
                             return;
+                        } else {
+                            KasaControl::toggle_by_idx(msg.status);
                         }
-                    },
+                    }
                     _ => (),
                 }
                 if let Some(tx) = &self.sender {
                     let _ = tx.send(KasaControl::display_line_builder());
                 }
             }
-
         }
-        
-    
     }
-
 }

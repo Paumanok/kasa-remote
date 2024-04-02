@@ -11,7 +11,6 @@ use std::sync::{mpsc, Arc, Mutex};
 
 use crate::peripheral_util::{Mode, RemoteState};
 
-
 pub enum TextSize {
     Small,
     Normal,
@@ -61,18 +60,12 @@ impl<'a> Display<'a> {
             return (2, self.text_small);
         }
     }
-    //pub fn display_message(&mut self, msg: DisplayMessage) {
-    //    for line in msg.lines {
-    //        
-    //    }   
-    //}
 
     pub fn display_service2(
         &mut self,
         i2c: i2c::I2cDriver,
         recv: mpsc::Receiver<DisplayMessage>,
-        ) -> Result<()> {
-
+    ) -> Result<()> {
         println!("display_service hit");
         //this Builder is the specific SH1106 builder
         let mut display: GraphicsMode<I2cInterface<i2c::I2cDriver>> = Builder::new()
@@ -98,9 +91,7 @@ impl<'a> Display<'a> {
             match recv.try_recv() {
                 Ok(msg) => {
                     //render what was received
-                    //self.display_message(msg);
                     for line in msg.lines {
-
                         Text::with_baseline(
                             line.line.as_str(),
                             Point::new(line.x_offset, line.y_offset),
@@ -112,14 +103,15 @@ impl<'a> Display<'a> {
                     }
 
                     display.flush().unwrap();
-                },
+                }
                 _ => (),
             };
 
+            //time for ~24fps
             std::thread::sleep(std::time::Duration::from_millis((1000 / 12) as u64));
         }
-
     }
+
     pub fn display_service(
         &mut self,
         i2c: i2c::I2cDriver,

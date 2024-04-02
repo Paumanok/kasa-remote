@@ -1,16 +1,11 @@
 use esp_idf_svc::hal::task::thread::ThreadSpawnConfiguration;
 use std::mem::replace;
-use std::sync::{mpsc, Arc, Mutex};
+use std::sync::mpsc;
 use std::thread;
 use std::time::Duration;
 
-use esp_idf_svc::hal::i2c;
-use sh1106::interface::DisplayInterface;
-use sh1106::{displayrotation::DisplayRotation, prelude::*, Builder};
-//use crate::peripheral_util::{buttons};
-use crate::peripheral_util::display::{ DisplayMessage, DisplayLine, TextSize};
 use crate::kasa_control;
-use embedded_time::Clock;
+use crate::peripheral_util::display::{DisplayLine, DisplayMessage, TextSize};
 
 /*
 * What do we want this to do?
@@ -33,7 +28,11 @@ struct TestModule {
 }
 
 impl RemoteModule for TestModule {
-    fn set_channel(&mut self, receiver: mpsc::Receiver<RemoteMessage>, sender: mpsc::Sender<DisplayMessage>) {
+    fn set_channel(
+        &mut self,
+        receiver: mpsc::Receiver<RemoteMessage>,
+        sender: mpsc::Sender<DisplayMessage>,
+    ) {
         log::info!("setting channel");
         self.receiver = Some(receiver);
         self.sender = Some(sender);
@@ -68,15 +67,14 @@ impl RemoteModule for TestModule {
             self.member += 1;
             std::thread::sleep(std::time::Duration::from_millis(20));
             if let Some(tx) = &self.sender {
-                let _ = tx.send(
-                DisplayMessage {
-                        lines: vec![
-                            DisplayLine {
-                                line: format!("counter: {:}", self.member),
-                                size: TextSize::Normal,
-                                x_offset: 20,
-                                y_offset: 20,
-                                }]});
+                let _ = tx.send(DisplayMessage {
+                    lines: vec![DisplayLine {
+                        line: format!("counter: {:}", self.member),
+                        size: TextSize::Normal,
+                        x_offset: 20,
+                        y_offset: 20,
+                    }],
+                });
             }
 
             std::thread::sleep(std::time::Duration::from_millis(100));
@@ -87,7 +85,12 @@ impl RemoteModule for TestModule {
 fn dummy_module() -> Box<dyn RemoteModule + Send> {
     struct Dummy;
     impl RemoteModule for Dummy {
-        fn set_channel(&mut self, receiver: mpsc::Receiver<RemoteMessage>, sender: mpsc::Sender<DisplayMessage> ) {} //this wont be called
+        fn set_channel(
+            &mut self,
+            receiver: mpsc::Receiver<RemoteMessage>,
+            sender: mpsc::Sender<DisplayMessage>,
+        ) {
+        } //this wont be called
         fn release_channel(&mut self) -> Option<mpsc::Receiver<RemoteMessage>> {
             None
         }
@@ -97,7 +100,11 @@ fn dummy_module() -> Box<dyn RemoteModule + Send> {
 }
 
 pub trait RemoteModule {
-    fn set_channel(&mut self, chnl: mpsc::Receiver<RemoteMessage>, sender: mpsc::Sender<DisplayMessage> );
+    fn set_channel(
+        &mut self,
+        chnl: mpsc::Receiver<RemoteMessage>,
+        sender: mpsc::Sender<DisplayMessage>,
+    );
     fn release_channel(&mut self) -> Option<mpsc::Receiver<RemoteMessage>>;
     //TODO: Change these to set/release the shared resource
     fn run(&mut self);
@@ -116,7 +123,6 @@ pub enum SwitchDirection {
     None,
 }
 
-
 pub struct ModuleRunner {
     focus: Focus, //inner vs outer
     btn_action: mpsc::Receiver<usize>,
@@ -130,26 +136,23 @@ pub struct ModuleRunner {
     module_handle: Option<thread::JoinHandle<Box<dyn RemoteModule + Send>>>,
 }
 
-
 impl ModuleRunner {
-    pub fn new(
-        btn_channel: mpsc::Receiver<usize>,
-        disp_tx: mpsc::Sender<DisplayMessage>,
-    ) -> Self {
+    pub fn new(btn_channel: mpsc::Receiver<usize>, disp_tx: mpsc::Sender<DisplayMessage>) -> Self {
         let (tx, rx) = mpsc::channel::<RemoteMessage>();
         Self {
             focus: Focus::Outer,
             btn_action: btn_channel,
-            modules: vec![Box::new(TestModule {
-                member: 0,
-                receiver: None,
-                sender: None,
-            }),
+            modules: vec![
+                Box::new(TestModule {
+                    member: 0,
+                    receiver: None,
+                    sender: None,
+                }),
                 Box::new(kasa_control::KasaControl {
                     receiver: None,
                     sender: None,
                     stats: vec![],
-                    monitor_idx: 0
+                    monitor_idx: 0,
                 }),
             ],
             module_tx: tx,
@@ -179,12 +182,12 @@ impl ModuleRunner {
                 if self.module_idx > 0 {
                     self.module_idx -= 1;
                 }
-            },
+            }
             SwitchDirection::Next => {
                 if self.module_idx < n_mod - 1 {
                     self.module_idx += 1;
                 }
-            },
+            }
             SwitchDirection::None => (),
         };
     }
@@ -198,7 +201,9 @@ impl ModuleRunner {
                 });
                 if event == 1 {
                     self.move_focus();
-                    if self.focus == Focus::Inner { log::info!("inner")}
+                    if self.focus == Focus::Inner {
+                        log::info!("inner")
+                    }
                 }
                 if event == 0 || event == 2 {
                     log::info!("trying to switch module");
@@ -260,14 +265,14 @@ pub fn runner_service(mr: &mut ModuleRunner) {
             //module not started,
             //time to start the next one
             //
-            
+
             //TODO: we'll need to check something here
-            //then set the share 
-            //set with a copy, no need to do an option on the runner 
+            //then set the share
+            //set with a copy, no need to do an option on the runner
             if mr.module_rx.is_some() {
                 log::info!("is some");
                 let rx = replace(&mut mr.module_rx, None).unwrap();
-                mr.modules[mr.module_idx].set_channel(rx,mr.state_tx.clone());
+                mr.modules[mr.module_idx].set_channel(rx, mr.state_tx.clone());
                 mr.module_rx = None;
             }
             mr.create_module_thread();
