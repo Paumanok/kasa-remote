@@ -60,10 +60,14 @@ impl KasaControl {
                 DisplayLine {
                     line: "line 1".to_string(),
                     size: TextSize::Normal,
+                    x_offset: 0,
+                    y_offset: 18,
                 },
                 DisplayLine {
                     line: "line 2".to_string(),
                     size: TextSize::Small,
+                    x_offset: 28,
+                    y_offset: 40,
                 },
             ]
         }
@@ -88,7 +92,7 @@ impl RemoteModule for KasaControl {
     fn run(&mut self) {
         loop {
 
-            std::thread::sleep(std::time::Duration::from_millis(1000));
+            std::thread::sleep(std::time::Duration::from_millis(100));
 
             if let Some(rx) = &self.receiver {
                 match rx.try_recv() {

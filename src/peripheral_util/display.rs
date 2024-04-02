@@ -7,7 +7,7 @@ use embedded_graphics::{
 };
 use esp_idf_svc::hal::i2c;
 use sh1106::{displayrotation::DisplayRotation, prelude::*, Builder};
-use std::sync::{Arc, Mutex};
+use std::sync::{mpsc, Arc, Mutex};
 
 use crate::peripheral_util::{Mode, RemoteState};
 
@@ -19,7 +19,9 @@ pub enum TextSize {
 
 pub struct DisplayLine {
     pub line: String,
-    pub size: TextSize
+    pub size: TextSize,
+    pub x_offset: i32,
+    pub y_offset: i32,
 }
 
 pub struct DisplayMessage {
@@ -59,10 +61,64 @@ impl<'a> Display<'a> {
             return (2, self.text_small);
         }
     }
-    pub fn display_message(&mut self, msg: DisplayMessage) {
-        for line in msg.lines {
-            
-        }   
+    //pub fn display_message(&mut self, msg: DisplayMessage) {
+    //    for line in msg.lines {
+    //        
+    //    }   
+    //}
+
+    pub fn display_service2(
+        &mut self,
+        i2c: i2c::I2cDriver,
+        recv: mpsc::Receiver<DisplayMessage>,
+        ) -> Result<()> {
+
+        println!("display_service hit");
+        //this Builder is the specific SH1106 builder
+        let mut display: GraphicsMode<I2cInterface<i2c::I2cDriver>> = Builder::new()
+            .with_rotation(DisplayRotation::Rotate180)
+            .connect_i2c(i2c)
+            .into();
+
+        display.init().unwrap();
+        display.flush().unwrap();
+
+        Text::with_baseline(
+            "Hello world!",
+            Point::zero(),
+            self.text_normal,
+            Baseline::Top,
+        )
+        .draw(&mut display)
+        .unwrap();
+
+        display.flush().unwrap();
+        loop {
+            display.clear();
+            match recv.try_recv() {
+                Ok(msg) => {
+                    //render what was received
+                    //self.display_message(msg);
+                    for line in msg.lines {
+
+                        Text::with_baseline(
+                            line.line.as_str(),
+                            Point::new(line.x_offset, line.y_offset),
+                            self.text_normal,
+                            Baseline::Top,
+                        )
+                        .draw(&mut display)
+                        .unwrap();
+                    }
+
+                    display.flush().unwrap();
+                },
+                _ => (),
+            };
+
+            std::thread::sleep(std::time::Duration::from_millis((1000 / 12) as u64));
+        }
+
     }
     pub fn display_service(
         &mut self,

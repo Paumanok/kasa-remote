@@ -8,8 +8,9 @@ use esp_idf_svc::hal::i2c;
 use sh1106::interface::DisplayInterface;
 use sh1106::{displayrotation::DisplayRotation, prelude::*, Builder};
 //use crate::peripheral_util::{buttons};
-use crate::peripheral_util::display::{ DisplayMessage, DisplayLine };
+use crate::peripheral_util::display::{ DisplayMessage, DisplayLine, TextSize};
 use crate::kasa_control;
+use embedded_time::Clock;
 
 /*
 * What do we want this to do?
@@ -45,6 +46,7 @@ impl RemoteModule for TestModule {
     }
 
     fn run(&mut self) {
+        self.member = 0;
         loop {
             if let Some(rx) = &self.receiver {
                 match rx.try_recv() {
@@ -65,6 +67,19 @@ impl RemoteModule for TestModule {
             }
             self.member += 1;
             std::thread::sleep(std::time::Duration::from_millis(20));
+            if let Some(tx) = &self.sender {
+                let _ = tx.send(
+                DisplayMessage {
+                        lines: vec![
+                            DisplayLine {
+                                line: format!("counter: {:}", self.member),
+                                size: TextSize::Normal,
+                                x_offset: 20,
+                                y_offset: 20,
+                                }]});
+            }
+
+            std::thread::sleep(std::time::Duration::from_millis(100));
         } //service loop
     }
 }
@@ -95,22 +110,12 @@ enum Focus {
     Special,
 }
 
-//struct ModuleSharedResource {
-//    module_rx: mpsc::Receiver<RemoteMessage>,
-//    module_tx: mpsc::Sender<RemoteMessage>,
-//}
-//
-//impl ModuleSharedResource {
-//    pub fn new(
-//        module_rx: mpsc::Receiver<RemoteMessage>,
-//        module_tx: mpsc::Sender<RemoteMessage>,
-//    ) -> Self {
-//        Self {
-//            module_rx,
-//            module_tx
-//        }
-//    }
-//}
+pub enum SwitchDirection {
+    Previous,
+    Next,
+    None,
+}
+
 
 pub struct ModuleRunner {
     focus: Focus, //inner vs outer
@@ -118,26 +123,20 @@ pub struct ModuleRunner {
     module_tx: mpsc::Sender<RemoteMessage>,
     module_rx: Option<mpsc::Receiver<RemoteMessage>>,
     state_tx: mpsc::Sender<DisplayMessage>,
-    state_rx: mpsc::Receiver<DisplayMessage>,
-    //shared: Arc<Mutex<ModuleSharedResource>>,
     modules: Vec<Box<dyn RemoteModule + Send>>,
     module_started: bool,
     module_idx: usize,
     last_module_idx: usize,
     module_handle: Option<thread::JoinHandle<Box<dyn RemoteModule + Send>>>,
 }
-//common traits needed
-//update? or should there be a service
-//all modules need to take a reciever
-//receiver should pass a varied amount of info
-//need
+
+
 impl ModuleRunner {
     pub fn new(
         btn_channel: mpsc::Receiver<usize>,
-        _i2c: i2c::I2cDriver,
+        disp_tx: mpsc::Sender<DisplayMessage>,
     ) -> Self {
         let (tx, rx) = mpsc::channel::<RemoteMessage>();
-        let (state_tx, state_rx) = mpsc::channel::<DisplayMessage>();
         Self {
             focus: Focus::Outer,
             btn_action: btn_channel,
@@ -155,9 +154,7 @@ impl ModuleRunner {
             ],
             module_tx: tx,
             module_rx: Some(rx),
-            state_tx: state_tx,
-            state_rx: state_rx,
-            //shared: Arc::new(Mutex::new(ModuleSharedResource::new(rx, state_tx))),
+            state_tx: disp_tx,
             module_started: false,
             module_idx: 0,
             last_module_idx: 0,
@@ -174,6 +171,24 @@ impl ModuleRunner {
         }
     }
 
+    pub fn switch_module(&mut self, dir: SwitchDirection) {
+        let n_mod = self.modules.len();
+        match dir {
+            SwitchDirection::Previous => {
+                log::info!("previous");
+                if self.module_idx > 0 {
+                    self.module_idx -= 1;
+                }
+            },
+            SwitchDirection::Next => {
+                if self.module_idx < n_mod - 1 {
+                    self.module_idx += 1;
+                }
+            },
+            SwitchDirection::None => (),
+        };
+    }
+
     fn check_buttons(&mut self) {
         match self.btn_action.recv_timeout(Duration::from_millis(10)) {
             Ok(event) => {
@@ -183,10 +198,21 @@ impl ModuleRunner {
                 });
                 if event == 1 {
                     self.move_focus();
+                    if self.focus == Focus::Inner { log::info!("inner")}
                 }
-                if event == 0 | 2 {
+                if event == 0 || event == 2 {
+                    log::info!("trying to switch module");
                     if self.focus == Focus::Outer {
+                        let dir = match event {
+                            0 => SwitchDirection::Previous,
+                            2 => SwitchDirection::Next,
+                            _ => SwitchDirection::None,
+                        };
+                        self.switch_module(dir);
+                        log::info!("{:} {:}", self.module_idx, self.last_module_idx);
                         //change modules
+                        //need some function to understand how many modules
+                        //are loaded, and to avoid indexing out of bounds
                     } else {
                         //pass to module
                     }
@@ -202,7 +228,7 @@ impl ModuleRunner {
         ThreadSpawnConfiguration {
             name: Some("cur_module\0".as_bytes()),
             stack_size: 10000,
-            priority: 15,
+            priority: 16,
             ..Default::default()
         }
         .set()
@@ -246,13 +272,14 @@ pub fn runner_service(mr: &mut ModuleRunner) {
             }
             mr.create_module_thread();
             mr.module_started = true;
+            mr.last_module_idx = mr.module_idx;
         }
         //running module but there's been a change
-        else if mr.module_started && mr.module_idx == mr.last_module_idx {
+        else if mr.module_started && mr.module_idx != mr.last_module_idx {
             //send exit command
             //join thread that is returning, take will automatically
             //replace mr.module_handle with None
-            std::thread::sleep(std::time::Duration::from_millis(5000));
+            //std::thread::sleep(std::time::Duration::from_millis(5000));
             let _ = mr.module_tx.send(RemoteMessage { status: 10 });
             mr.modules[mr.last_module_idx] = mr
                 .module_handle

@@ -1,4 +1,4 @@
-use crate::peripheral_util::{buttons, display::Display};
+use crate::peripheral_util::{buttons, display::{Display, DisplayMessage}};
 use anyhow::{bail, Result};
 use esp_idf_svc::eventloop::EspSystemEventLoop;
 use esp_idf_svc::hal::prelude::Peripherals;
@@ -89,6 +89,7 @@ fn main() -> Result<()> {
     //let rs_stat = Arc::clone(&rs);
 
     let (but_tx, but_rx) = mpsc::channel();
+    let (disp_tx, disp_rx) = mpsc::channel::<DisplayMessage>();
 
     //this apparently works for the anteceding thread builder call
     //https://github.com/esp-rs/esp-idf-hal/issues/228#issuecomment-1676035648
@@ -105,18 +106,19 @@ fn main() -> Result<()> {
     //    let _ = peripheral_util::statistics_service(rs_stat);
     //});
 
-    //ThreadSpawnConfiguration {
-    //    name: Some("display_service\0".as_bytes()),
-    //    stack_size: 10000,
-    //    priority: 14,
-    //    ..Default::default()
-    //}
-    //.set()
-    //.unwrap();
+    ThreadSpawnConfiguration {
+        name: Some("display_service\0".as_bytes()),
+        stack_size: 10000,
+        priority: 13,
+        ..Default::default()
+    }
+    .set()
+    .unwrap();
 
-    //let _d_thread = thread::Builder::new().stack_size(10000).spawn(move || {
-    //    let _ = Display::new().display_service(i2c, rs_disp);
-    //});
+    let _d_thread = thread::Builder::new().stack_size(10000).spawn(move || {
+        //let _ = Display::new().display_service(i2c, rs_disp);
+        let _ = Display::new().display_service2(i2c, disp_rx);
+    });
 
     ThreadSpawnConfiguration {
         name: Some("runner_service\0".as_bytes()),
@@ -127,7 +129,7 @@ fn main() -> Result<()> {
     .set()
     .unwrap();
 
-    let mut md = crate::module_runner::ModuleRunner::new(but_rx, i2c);
+    let mut md = crate::module_runner::ModuleRunner::new(but_rx, disp_tx);
     let _e_thread = thread::Builder::new().stack_size(10000).spawn(move || {
         //let _ = peripheral_util::encoder_service(enc_dt, enc_clk, enc_button, rs_enc);
         log::info!("trying to start");
