@@ -59,7 +59,11 @@ impl<'a> Display<'a> {
             return (2, self.text_small);
         }
     }
-
+    pub fn display_message(&mut self, msg: DisplayMessage) {
+        for line in msg.lines {
+            
+        }   
+    }
     pub fn display_service(
         &mut self,
         i2c: i2c::I2cDriver,

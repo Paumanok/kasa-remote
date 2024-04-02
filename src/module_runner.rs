@@ -9,6 +9,7 @@ use sh1106::interface::DisplayInterface;
 use sh1106::{displayrotation::DisplayRotation, prelude::*, Builder};
 //use crate::peripheral_util::{buttons};
 use crate::peripheral_util::display::{ DisplayMessage, DisplayLine };
+use crate::kasa_control;
 
 /*
 * What do we want this to do?
@@ -21,23 +22,26 @@ use crate::peripheral_util::display::{ DisplayMessage, DisplayLine };
 */
 #[derive(Clone)]
 pub struct RemoteMessage {
-    status: u32,
+    pub status: u32,
 }
 
 struct TestModule {
     member: u32,
     receiver: Option<mpsc::Receiver<RemoteMessage>>,
+    sender: Option<mpsc::Sender<DisplayMessage>>,
 }
 
 impl RemoteModule for TestModule {
-    fn set_channel(&mut self, chnl: mpsc::Receiver<RemoteMessage>) {
+    fn set_channel(&mut self, receiver: mpsc::Receiver<RemoteMessage>, sender: mpsc::Sender<DisplayMessage>) {
         log::info!("setting channel");
-        self.receiver = Some(chnl);
+        self.receiver = Some(receiver);
+        self.sender = Some(sender);
     }
 
     fn release_channel(&mut self) -> Option<mpsc::Receiver<RemoteMessage>> {
-        let channel = replace(&mut self.receiver, None);
-        return channel;
+        let rec = replace(&mut self.receiver, None);
+        let _send = replace(&mut self.sender, None);
+        return rec;
     }
 
     fn run(&mut self) {
@@ -68,7 +72,7 @@ impl RemoteModule for TestModule {
 fn dummy_module() -> Box<dyn RemoteModule + Send> {
     struct Dummy;
     impl RemoteModule for Dummy {
-        fn set_channel(&mut self, chnl: mpsc::Receiver<RemoteMessage>) {} //this wont be called
+        fn set_channel(&mut self, receiver: mpsc::Receiver<RemoteMessage>, sender: mpsc::Sender<DisplayMessage> ) {} //this wont be called
         fn release_channel(&mut self) -> Option<mpsc::Receiver<RemoteMessage>> {
             None
         }
@@ -78,7 +82,7 @@ fn dummy_module() -> Box<dyn RemoteModule + Send> {
 }
 
 pub trait RemoteModule {
-    fn set_channel(&mut self, chnl: mpsc::Receiver<RemoteMessage>);
+    fn set_channel(&mut self, chnl: mpsc::Receiver<RemoteMessage>, sender: mpsc::Sender<DisplayMessage> );
     fn release_channel(&mut self) -> Option<mpsc::Receiver<RemoteMessage>>;
     //TODO: Change these to set/release the shared resource
     fn run(&mut self);
@@ -140,7 +144,15 @@ impl ModuleRunner {
             modules: vec![Box::new(TestModule {
                 member: 0,
                 receiver: None,
-            })],
+                sender: None,
+            }),
+                Box::new(kasa_control::KasaControl {
+                    receiver: None,
+                    sender: None,
+                    stats: vec![],
+                    monitor_idx: 0
+                }),
+            ],
             module_tx: tx,
             module_rx: Some(rx),
             state_tx: state_tx,
@@ -229,7 +241,7 @@ pub fn runner_service(mr: &mut ModuleRunner) {
             if mr.module_rx.is_some() {
                 log::info!("is some");
                 let rx = replace(&mut mr.module_rx, None).unwrap();
-                mr.modules[mr.module_idx].set_channel(rx);
+                mr.modules[mr.module_idx].set_channel(rx,mr.state_tx.clone());
                 mr.module_rx = None;
             }
             mr.create_module_thread();

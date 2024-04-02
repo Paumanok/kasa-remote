@@ -4,6 +4,7 @@ use std::mem::replace;
 use crate::peripheral_util::display::{ DisplayMessage, DisplayLine, TextSize };
 use std::sync::mpsc;
 use rust_kasa::kasa_protocol;
+use std::time::Duration;
 
 
 
@@ -18,16 +19,18 @@ pub struct Config {
 }
 
 
-struct KasaControl {
-    receiver: Option<mpsc::Receiver<RemoteMessage>>,
-    stats: Vec<kasa_protocol::Realtime>,
-    monitor_idx: usize,
+pub struct KasaControl {
+    pub receiver: Option<mpsc::Receiver<RemoteMessage>>,
+    pub sender: Option<mpsc::Sender<DisplayMessage>>,
+    pub stats: Vec<kasa_protocol::Realtime>,
+    pub monitor_idx: usize,
     //we need some actual data state keeping similar to the monitor and totals
     //perhaps a mutable vec where we can update one at a time or
     //update the entire vec
 }
 
 impl KasaControl {
+
 
     pub fn get_target_stat(idx: u8) -> Option<kasa_protocol::Realtime> {
         let app_config = CONFIG;
@@ -70,18 +73,40 @@ impl KasaControl {
 
 impl RemoteModule for KasaControl {
 
-    fn set_channel(&mut self, chnl: mpsc::Receiver<RemoteMessage>) {
+    fn set_channel(&mut self, receiver: mpsc::Receiver<RemoteMessage>, sender: mpsc::Sender<DisplayMessage>) {
         log::info!("setting channel");
-        self.receiver = Some(chnl);
+        self.receiver = Some(receiver);
+        self.sender = Some(sender);
     }
 
     fn release_channel(&mut self) -> Option<mpsc::Receiver<RemoteMessage>> {
-        let channel = replace(&mut self.receiver, None);
-        return channel;
+        let rec = replace(&mut self.receiver, None);
+        let _send = replace(&mut self.sender, None);
+        return rec;
     }
 
     fn run(&mut self) {
+        loop {
+
+            std::thread::sleep(std::time::Duration::from_millis(1000));
+
+            if let Some(rx) = &self.receiver {
+                match rx.try_recv() {
+                    Ok(msg) => {
+                        if msg.status == 10 {
+                            return;
+                        }
+                    },
+                    _ => (),
+                }
+                if let Some(tx) = &self.sender {
+                    let _ = tx.send(KasaControl::display_line_builder());
+                }
+            }
+
+        }
         
+    
     }
 
 }
