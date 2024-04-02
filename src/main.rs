@@ -6,7 +6,7 @@ use esp_idf_svc::hal::prelude::*;
 use esp_idf_svc::hal::task::thread::ThreadSpawnConfiguration;
 use esp_idf_svc::hal::{gpio, i2c};
 //use std::net::TcpStream;
-use std::sync::{Arc, Mutex, mpsc};
+use std::sync::{mpsc, Arc, Mutex};
 use std::thread;
 //use wifi::wifi;
 
@@ -15,6 +15,7 @@ use rust_kasa::kasa_protocol;
 pub mod module_runner;
 pub mod peripheral_util;
 pub mod wifi;
+pub mod kasa_control;
 /// This configuration is picked up at compile time by `build.rs` from the
 /// file `cfg.toml`.
 #[toml_cfg::toml_config]
@@ -126,13 +127,12 @@ fn main() -> Result<()> {
     .set()
     .unwrap();
 
-    let mut md = crate::module_runner::ModuleRunner::new(but_rx);
+    let mut md = crate::module_runner::ModuleRunner::new(but_rx, i2c);
     let _e_thread = thread::Builder::new().stack_size(10000).spawn(move || {
         //let _ = peripheral_util::encoder_service(enc_dt, enc_clk, enc_button, rs_enc);
         log::info!("trying to start");
         let _ = crate::module_runner::runner_service(&mut md);
     });
-
 
     log::info!("wtf");
     ThreadSpawnConfiguration {
@@ -146,16 +146,14 @@ fn main() -> Result<()> {
 
     let _e_thread = thread::Builder::new().stack_size(10000).spawn(move || {
         //let _ = peripheral_util::encoder_service(enc_dt, enc_clk, enc_button, rs_enc);
-        let _ = buttons::button_service(buttons,  but_tx.clone());
+        let _ = buttons::button_service(buttons, but_tx.clone());
     });
     log::info!("after button service start");
-
 
     log::info!("Hello, after thread spawn");
 
     loop {
-
-            std::thread::sleep(std::time::Duration::from_millis(1000));
+        std::thread::sleep(std::time::Duration::from_millis(1000));
         //if button.is_low() {
         //    let _ = toggle();
         //    println!("hit");

@@ -1,9 +1,14 @@
-use std::sync::{Arc, mpsc};
-use std::time::Duration;
-use std::mem::replace;
-use std::thread;
 use esp_idf_svc::hal::task::thread::ThreadSpawnConfiguration;
+use std::mem::replace;
+use std::sync::{mpsc, Arc, Mutex};
+use std::thread;
+use std::time::Duration;
+
+use esp_idf_svc::hal::i2c;
+use sh1106::interface::DisplayInterface;
+use sh1106::{displayrotation::DisplayRotation, prelude::*, Builder};
 //use crate::peripheral_util::{buttons};
+use crate::peripheral_util::display::{ DisplayMessage, DisplayLine };
 
 /*
 * What do we want this to do?
@@ -31,18 +36,8 @@ impl RemoteModule for TestModule {
     }
 
     fn release_channel(&mut self) -> Option<mpsc::Receiver<RemoteMessage>> {
-       // let channel = self.receiver;
-       // self.receiver = None;
-       // return channel
         let channel = replace(&mut self.receiver, None);
-        return channel
-       // match self.receiver {
-       //     Some(rcv) => {
-       //         self.receiver = None;
-       //         Some(rcv)
-       //     },
-       //     None => None,
-       // }
+        return channel;
     }
 
     fn run(&mut self) {
@@ -53,7 +48,7 @@ impl RemoteModule for TestModule {
                         if msg.status == 10 {
                             log::info!("returning via command");
                             log::info!("member count up to: {:}", self.member);
-                            return
+                            return;
                         } else {
                             log::info!("got button event: {:}", msg.status);
                         }
@@ -62,7 +57,7 @@ impl RemoteModule for TestModule {
                 };
             } else {
                 log::info!("no channel receiver configured");
-                return
+                return;
             }
             self.member += 1;
             std::thread::sleep(std::time::Duration::from_millis(20));
@@ -74,15 +69,18 @@ fn dummy_module() -> Box<dyn RemoteModule + Send> {
     struct Dummy;
     impl RemoteModule for Dummy {
         fn set_channel(&mut self, chnl: mpsc::Receiver<RemoteMessage>) {} //this wont be called
-        fn release_channel(&mut self) -> Option<mpsc::Receiver<RemoteMessage>> {None}
-        fn run(&mut self) { }
+        fn release_channel(&mut self) -> Option<mpsc::Receiver<RemoteMessage>> {
+            None
+        }
+        fn run(&mut self) {}
     }
     Box::new(Dummy)
 }
 
 pub trait RemoteModule {
     fn set_channel(&mut self, chnl: mpsc::Receiver<RemoteMessage>);
-    fn release_channel(&mut self) -> Option<mpsc::Receiver<RemoteMessage>> ;
+    fn release_channel(&mut self) -> Option<mpsc::Receiver<RemoteMessage>>;
+    //TODO: Change these to set/release the shared resource
     fn run(&mut self);
 }
 
@@ -93,17 +91,36 @@ enum Focus {
     Special,
 }
 
+//struct ModuleSharedResource {
+//    module_rx: mpsc::Receiver<RemoteMessage>,
+//    module_tx: mpsc::Sender<RemoteMessage>,
+//}
+//
+//impl ModuleSharedResource {
+//    pub fn new(
+//        module_rx: mpsc::Receiver<RemoteMessage>,
+//        module_tx: mpsc::Sender<RemoteMessage>,
+//    ) -> Self {
+//        Self {
+//            module_rx,
+//            module_tx
+//        }
+//    }
+//}
+
 pub struct ModuleRunner {
     focus: Focus, //inner vs outer
     btn_action: mpsc::Receiver<usize>,
     module_tx: mpsc::Sender<RemoteMessage>,
     module_rx: Option<mpsc::Receiver<RemoteMessage>>,
+    state_tx: mpsc::Sender<DisplayMessage>,
+    state_rx: mpsc::Receiver<DisplayMessage>,
+    //shared: Arc<Mutex<ModuleSharedResource>>,
     modules: Vec<Box<dyn RemoteModule + Send>>,
     module_started: bool,
     module_idx: usize,
     last_module_idx: usize,
     module_handle: Option<thread::JoinHandle<Box<dyn RemoteModule + Send>>>,
-
 }
 //common traits needed
 //update? or should there be a service
@@ -111,14 +128,24 @@ pub struct ModuleRunner {
 //receiver should pass a varied amount of info
 //need
 impl ModuleRunner {
-    pub fn new(btn_channel: mpsc::Receiver<usize>) -> Self {
+    pub fn new(
+        btn_channel: mpsc::Receiver<usize>,
+        _i2c: i2c::I2cDriver,
+    ) -> Self {
         let (tx, rx) = mpsc::channel::<RemoteMessage>();
+        let (state_tx, state_rx) = mpsc::channel::<DisplayMessage>();
         Self {
             focus: Focus::Outer,
             btn_action: btn_channel,
-            modules: vec![Box::new(TestModule{ member: 0, receiver: None})],
+            modules: vec![Box::new(TestModule {
+                member: 0,
+                receiver: None,
+            })],
             module_tx: tx,
             module_rx: Some(rx),
+            state_tx: state_tx,
+            state_rx: state_rx,
+            //shared: Arc::new(Mutex::new(ModuleSharedResource::new(rx, state_tx))),
             module_started: false,
             module_idx: 0,
             last_module_idx: 0,
@@ -139,7 +166,9 @@ impl ModuleRunner {
         match self.btn_action.recv_timeout(Duration::from_millis(10)) {
             Ok(event) => {
                 log::info!("btn press registered: {:}", event);
-                let _ = self.module_tx.send(RemoteMessage{status: event as u32});
+                let _ = self.module_tx.send(RemoteMessage {
+                    status: event as u32,
+                });
                 if event == 1 {
                     self.move_focus();
                 }
@@ -155,11 +184,9 @@ impl ModuleRunner {
             }
             _ => (), //dont care about timeouts
         };
-
     }
 
     fn create_module_thread(&mut self) {
-        
         ThreadSpawnConfiguration {
             name: Some("cur_module\0".as_bytes()),
             stack_size: 10000,
@@ -171,10 +198,15 @@ impl ModuleRunner {
         //will need to remove from vec, lets replace it with a dummy for now
         let mut module = replace(&mut self.modules[self.module_idx], dummy_module());
         log::info!("creating thread");
-        self.module_handle = Some(thread::Builder::new().stack_size(10000).spawn(move || {
-            let _ = module.run();
-            return module
-        }).unwrap());
+        self.module_handle = Some(
+            thread::Builder::new()
+                .stack_size(10000)
+                .spawn(move || {
+                    let _ = module.run();
+                    return module;
+                })
+                .unwrap(),
+        );
     }
 }
 
@@ -189,15 +221,19 @@ pub fn runner_service(mr: &mut ModuleRunner) {
             log::info!("module not started, lets try to start it");
             //module not started,
             //time to start the next one
-            if  mr.module_rx.is_some() {
+            //
+            
+            //TODO: we'll need to check something here
+            //then set the share 
+            //set with a copy, no need to do an option on the runner 
+            if mr.module_rx.is_some() {
                 log::info!("is some");
                 let rx = replace(&mut mr.module_rx, None).unwrap();
-                mr.modules[mr.module_idx].set_channel( rx);
+                mr.modules[mr.module_idx].set_channel(rx);
                 mr.module_rx = None;
             }
             mr.create_module_thread();
             mr.module_started = true;
-
         }
         //running module but there's been a change
         else if mr.module_started && mr.module_idx == mr.last_module_idx {
@@ -205,8 +241,13 @@ pub fn runner_service(mr: &mut ModuleRunner) {
             //join thread that is returning, take will automatically
             //replace mr.module_handle with None
             std::thread::sleep(std::time::Duration::from_millis(5000));
-            let _ = mr.module_tx.send(RemoteMessage{status: 10});
-            mr.modules[mr.last_module_idx] = mr.module_handle.take().map(|x| x.join()).unwrap().expect("failed to join mod thread");
+            let _ = mr.module_tx.send(RemoteMessage { status: 10 });
+            mr.modules[mr.last_module_idx] = mr
+                .module_handle
+                .take()
+                .map(|x| x.join())
+                .unwrap()
+                .expect("failed to join mod thread");
             mr.module_started = false;
             //release the channel's clone
             log::info!("module stopped");
@@ -217,6 +258,6 @@ pub fn runner_service(mr: &mut ModuleRunner) {
         } else {
             //log::info!("everything being skipped");
         }
-        //how do we determine start and stop of module 
+        //how do we determine start and stop of module
     }
 }

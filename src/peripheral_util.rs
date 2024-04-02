@@ -41,11 +41,6 @@ impl Monitor {
         }
     }
 
-    pub fn update(&mut self) {
-        if let Some(stat) = Self::get_current_stat(self.idx) {
-            self.stats = Some(stat);
-        }
-    }
     pub fn get_current_stat(idx: u8) -> Option<kasa_protocol::Realtime> {
         let app_config = CONFIG;
         let mut stream = TcpStream::connect(format!("{:}:9999", app_config.target_ip)).ok()?;

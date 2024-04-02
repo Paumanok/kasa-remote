@@ -11,6 +11,21 @@ use std::sync::{Arc, Mutex};
 
 use crate::peripheral_util::{Mode, RemoteState};
 
+
+pub enum TextSize {
+    Small,
+    Normal,
+}
+
+pub struct DisplayLine {
+    pub line: String,
+    pub size: TextSize
+}
+
+pub struct DisplayMessage {
+    pub lines: Vec<DisplayLine>,
+}
+
 pub struct Display<'a> {
     text_normal: MonoTextStyle<'a, BinaryColor>,
     text_small: MonoTextStyle<'a, BinaryColor>,
@@ -52,7 +67,7 @@ impl<'a> Display<'a> {
     ) -> Result<()> {
         println!("display_service hit");
         //this Builder is the specific SH1106 builder
-        let mut display: GraphicsMode<_> = Builder::new()
+        let mut display: GraphicsMode<I2cInterface<i2c::I2cDriver>> = Builder::new()
             .with_rotation(DisplayRotation::Rotate180)
             .connect_i2c(i2c)
             .into();
@@ -122,7 +137,7 @@ impl<'a> Display<'a> {
                     //msg.monitor.update();
                     match msg.mode {
                         Mode::Monitor => {
-                            if let Some(stats) = msg.monitor.stats {
+                            if let Some(stats) = &msg.monitor.stats {
                                 let ma = format!(
                                     "I:{:>4}mA   P: {:>4}mW\r\n\r\nPt: {:>3}Wh",
                                     stats.current_ma, stats.power_mw, stats.total_wh,
@@ -157,7 +172,7 @@ impl<'a> Display<'a> {
                             };
                         }
                         Mode::Totals => {
-                            if let Some(stats) = msg.totals.stats {
+                            if let Some(stats) = &msg.totals.stats {
                                 let ma = format!(
                                     "I:{:>4}mA   P: {:>4}mW\r\n\r\nPt: {:>3}Wh",
                                     stats.current_ma, stats.power_mw, stats.total_wh,

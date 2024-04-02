@@ -46,8 +46,8 @@ fn button_action(btn_idx: usize, rs: &Arc<Mutex<RemoteState>>) {
 }
 
 fn button_action_generic(btn_idx: usize, btn_state: &Buttons) {
-    if let Some(tx) = &btn_state.action_tx{
-        log::info!("sending from buttons"); 
+    if let Some(tx) = &btn_state.action_tx {
+        log::info!("sending from buttons");
         tx.send(btn_idx).unwrap();
     }
 }
