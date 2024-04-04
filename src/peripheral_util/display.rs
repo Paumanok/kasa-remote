@@ -156,7 +156,6 @@ impl<'a> Display<'a> {
             match rs.lock() {
                 Ok(msg) => {
                     display.clear();
-                    let modes = ["Monitor", "Totals", "Settings"];
                     let mode1 = "Monitor";
                     let mode2 = "Totals";
                     let mode3 = "Info";

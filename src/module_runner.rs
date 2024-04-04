@@ -43,6 +43,10 @@ impl RemoteModule for TestModule {
         let _send = replace(&mut self.sender, None);
         return rec;
     }
+    
+    fn get_display_name(self) -> String {
+        return "Test".to_string()
+    }
 
     fn run(&mut self) {
         self.member = 0;
@@ -87,13 +91,14 @@ fn dummy_module() -> Box<dyn RemoteModule + Send> {
     impl RemoteModule for Dummy {
         fn set_channel(
             &mut self,
-            receiver: mpsc::Receiver<RemoteMessage>,
-            sender: mpsc::Sender<DisplayMessage>,
+            _receiver: mpsc::Receiver<RemoteMessage>,
+            _sender: mpsc::Sender<DisplayMessage>,
         ) {
         } //this wont be called
         fn release_channel(&mut self) -> Option<mpsc::Receiver<RemoteMessage>> {
             None
         }
+        fn get_display_name(self) -> String { "dummy".to_string()}
         fn run(&mut self) {}
     }
     Box::new(Dummy)
@@ -106,6 +111,7 @@ pub trait RemoteModule {
         sender: mpsc::Sender<DisplayMessage>,
     );
     fn release_channel(&mut self) -> Option<mpsc::Receiver<RemoteMessage>>;
+    fn get_display_name(self) -> String;
     //TODO: Change these to set/release the shared resource
     fn run(&mut self);
 }
@@ -148,12 +154,7 @@ impl ModuleRunner {
                     receiver: None,
                     sender: None,
                 }),
-                Box::new(kasa_control::KasaControl {
-                    receiver: None,
-                    sender: None,
-                    stats: vec![],
-                    monitor_idx: 0,
-                }),
+                Box::new(kasa_control::KasaControl::new()),
             ],
             module_tx: tx,
             module_rx: Some(rx),
@@ -196,9 +197,6 @@ impl ModuleRunner {
         match self.btn_action.recv_timeout(Duration::from_millis(10)) {
             Ok(event) => {
                 log::info!("btn press registered: {:}", event);
-                let _ = self.module_tx.send(RemoteMessage {
-                    status: event as u32,
-                });
                 if event == 1 {
                     self.move_focus();
                     if self.focus == Focus::Inner {
@@ -220,9 +218,15 @@ impl ModuleRunner {
                         //are loaded, and to avoid indexing out of bounds
                     } else {
                         //pass to module
+                        let _ = self.module_tx.send(RemoteMessage {
+                            status: event as u32,
+                        });
                     }
                 } else {
                     //pass to module
+                    let _ = self.module_tx.send(RemoteMessage {
+                        status: event as u32,
+                    });
                 }
             }
             _ => (), //dont care about timeouts
@@ -239,6 +243,7 @@ impl ModuleRunner {
         .set()
         .unwrap();
         //will need to remove from vec, lets replace it with a dummy for now
+        //let replaced_name = self.modules[self.module_idx].get_display_name();
         let mut module = replace(&mut self.modules[self.module_idx], dummy_module());
         log::info!("creating thread");
         self.module_handle = Some(

@@ -6,17 +6,37 @@ use std::mem::replace;
 use std::net::TcpStream;
 use std::sync::mpsc;
 
+enum BoolDir {
+    Next,
+    Prev,
+}
+
 pub struct KasaControl {
-    pub receiver: Option<mpsc::Receiver<RemoteMessage>>,
-    pub sender: Option<mpsc::Sender<DisplayMessage>>,
-    pub stats: Vec<kasa_protocol::Realtime>,
-    pub monitor_idx: usize,
-    //we need some actual data state keeping similar to the monitor and totals
-    //perhaps a mutable vec where we can update one at a time or
-    //update the entire vec
+    receiver: Option<mpsc::Receiver<RemoteMessage>>,
+    sender: Option<mpsc::Sender<DisplayMessage>>,
+    stats: Vec<kasa_protocol::Realtime>,
+    monitor_idx: usize,
+    update: bool,
 }
 
 impl KasaControl {
+    pub fn new() -> KasaControl{
+        KasaControl {
+            receiver: None,
+            sender: None,
+            stats: vec![
+                kasa_protocol::Realtime{
+                    current_ma: 0,
+                    err_code: 0,
+                    power_mw: 0,
+                    slot_id: 0,
+                    total_wh: 0,
+                    voltage_mv: 0,
+                }; 7],
+            monitor_idx: 0,
+            update: true,
+        }
+    }
     pub fn get_target_stat(idx: u8) -> Option<kasa_protocol::Realtime> {
         let app_config = CONFIG;
         let mut stream = TcpStream::connect(format!("{:}:9999", app_config.target_ip)).ok()?;
@@ -38,20 +58,38 @@ impl KasaControl {
         })
     }
 
-    fn display_line_builder() -> DisplayMessage {
+    fn display_line_builder(&mut self) -> DisplayMessage {
         DisplayMessage {
             lines: vec![
                 DisplayLine {
-                    line: "line 1".to_string(),
+                    //line: "line 1".to_string(),
+                    line: {
+                        let cur_stats = &self.stats[self.monitor_idx];
+                        format!(
+                            "I:{:>4}mA   P: {:>4}mW\r\n\r\nPt: {:>3}Wh",
+                            cur_stats.current_ma, cur_stats.power_mw, cur_stats.total_wh,
+                        )
+                    },
                     size: TextSize::Normal,
                     x_offset: 0,
                     y_offset: 18,
                 },
                 DisplayLine {
-                    line: "line 2".to_string(),
+                    //line: "line 2".to_string(),
+                    line:  {
+                        let mut outlet = String::from("");
+                        for i in 1..7 {
+                            if self.monitor_idx + 1 == i {
+                                outlet.push_str(format!(" {:?}", i).as_str());
+                            } else {
+                                outlet.push_str(" *");
+                            }
+                        }
+                        outlet
+                    },
                     size: TextSize::Small,
                     x_offset: 28,
-                    y_offset: 40,
+                    y_offset: 50,
                 },
             ],
         }
@@ -64,6 +102,14 @@ impl KasaControl {
                 let _res = kasa_protocol::toggle_relay_by_idx(&mut stream, (btn_idx - 3) as usize);
             }
         }
+    }
+
+    fn update_idx(&mut self, d: BoolDir) {
+        match d {
+            BoolDir::Next => { self.monitor_idx +=1},
+            BoolDir::Prev => { self.monitor_idx -=1 },
+        };
+        self.update = true;
     }
 }
 
@@ -83,24 +129,50 @@ impl RemoteModule for KasaControl {
         let _send = replace(&mut self.sender, None);
         return rec;
     }
+    
+    fn get_display_name(self) -> String {
+        return "Kasa".to_string()
+    }
 
     fn run(&mut self) {
+        let mut poll_counter: usize = 0;
         loop {
-            std::thread::sleep(std::time::Duration::from_millis(100));
+            std::thread::sleep(std::time::Duration::from_millis(50));
+            poll_counter += 1;
+            if poll_counter == 100 { //every 5 seconds with 100mili loop delay unless toggle takes time 
+                poll_counter = 0;
+                if let Some(stat) = KasaControl::get_target_stat(self.monitor_idx as u8) {
+                    self.stats[self.monitor_idx] = stat;
+                    self.update = true;
+                }
 
+            }
             if let Some(rx) = &self.receiver {
                 match rx.try_recv() {
                     Ok(msg) => {
                         if msg.status == 10 {
+                            self.update = true;
+                            log::info!("kc exiting");
                             return;
+                        } else if msg.status == 0 && self.monitor_idx > 0 {
+                            self.update_idx(BoolDir::Prev);
+                            log::info!("{:}", self.monitor_idx);
+                        } else if msg.status == 2 && self.monitor_idx < 7 {
+                            self.update_idx(BoolDir::Next);
+                            log::info!("{:}", self.monitor_idx);
                         } else {
                             KasaControl::toggle_by_idx(msg.status);
                         }
                     }
                     _ => (),
                 }
-                if let Some(tx) = &self.sender {
-                    let _ = tx.send(KasaControl::display_line_builder());
+                if self.update {
+                    let msg = self.display_line_builder();
+                    if let Some(tx) = &self.sender {
+                        log::info!("is this sending");
+                        let _ = tx.send(msg);
+                    }
+                    self.update = false;
                 }
             }
         }
