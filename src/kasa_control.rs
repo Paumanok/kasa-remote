@@ -136,6 +136,9 @@ impl RemoteModule for KasaControl {
 
     fn run(&mut self) {
         let mut poll_counter: usize = 0;
+        //redraw the display at load
+        self.update = true;
+
         loop {
             std::thread::sleep(std::time::Duration::from_millis(50));
             poll_counter += 1;

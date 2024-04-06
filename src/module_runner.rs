@@ -149,12 +149,12 @@ impl ModuleRunner {
             focus: Focus::Outer,
             btn_action: btn_channel,
             modules: vec![
+                Box::new(kasa_control::KasaControl::new()),
                 Box::new(TestModule {
                     member: 0,
                     receiver: None,
                     sender: None,
                 }),
-                Box::new(kasa_control::KasaControl::new()),
             ],
             module_tx: tx,
             module_rx: Some(rx),
@@ -211,11 +211,9 @@ impl ModuleRunner {
                             2 => SwitchDirection::Next,
                             _ => SwitchDirection::None,
                         };
+                        //change modules
                         self.switch_module(dir);
                         log::info!("{:} {:}", self.module_idx, self.last_module_idx);
-                        //change modules
-                        //need some function to understand how many modules
-                        //are loaded, and to avoid indexing out of bounds
                     } else {
                         //pass to module
                         let _ = self.module_tx.send(RemoteMessage {
@@ -269,11 +267,6 @@ pub fn runner_service(mr: &mut ModuleRunner) {
             log::info!("module not started, lets try to start it");
             //module not started,
             //time to start the next one
-            //
-
-            //TODO: we'll need to check something here
-            //then set the share
-            //set with a copy, no need to do an option on the runner
             if mr.module_rx.is_some() {
                 log::info!("is some");
                 let rx = replace(&mut mr.module_rx, None).unwrap();
@@ -302,8 +295,6 @@ pub fn runner_service(mr: &mut ModuleRunner) {
             log::info!("module stopped");
             mr.module_rx = mr.modules[mr.last_module_idx].release_channel();
 
-            //start new module's thread
-            //mr.create_module_thread();
         } else {
             //log::info!("everything being skipped");
         }
