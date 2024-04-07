@@ -10,6 +10,7 @@ use esp_idf_svc::hal::task::thread::ThreadSpawnConfiguration;
 use esp_idf_svc::hal::{gpio, i2c};
 use std::sync::mpsc;
 use std::thread;
+
 //use wifi::wifi;
 
 use rust_kasa::kasa_protocol;
@@ -77,6 +78,12 @@ fn main() -> Result<()> {
     let config = i2c::I2cConfig::new().baudrate(400.kHz().into());
     let i2c = i2c::I2cDriver::new(i2c, sda, scl, &config)?;
 
+    let bus: &'static _ = shared_bus::new_std!(i2c::I2cDriver = i2c).unwrap();
+    let i2c_display_proxy = bus.acquire_i2c();
+    let i2c_max170xx_proxy = bus.acquire_i2c();
+    
+
+
     let (but_tx, but_rx) = mpsc::channel();
     let (disp_tx, disp_rx) = mpsc::channel::<DisplayMessage>();
 
@@ -93,7 +100,7 @@ fn main() -> Result<()> {
 
     let _d_thread = thread::Builder::new().stack_size(10000).spawn(move || {
         //let _ = Display::new().display_service(i2c, rs_disp);
-        let _ = Display::new().display_service2(i2c, disp_rx);
+        let _ = Display::new().display_service2(i2c_display_proxy, disp_rx);
     });
 
     ThreadSpawnConfiguration {
@@ -124,7 +131,8 @@ fn main() -> Result<()> {
     });
 
     log::info!("Hello, after thread spawn");
-
+    
+    let mut sensor = max170xx::Max17048::new(i2c_max170xx_proxy);
     loop {
         std::thread::sleep(std::time::Duration::from_millis(1000));
 

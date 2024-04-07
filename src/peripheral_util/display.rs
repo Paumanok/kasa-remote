@@ -7,6 +7,7 @@ use embedded_graphics::{
 };
 use esp_idf_svc::hal::i2c;
 use sh1106::{displayrotation::DisplayRotation, prelude::*, Builder};
+use shared_bus::I2cProxy;
 use std::sync::{mpsc, Arc, Mutex};
 
 use crate::peripheral_util::{Mode, RemoteState};
@@ -61,11 +62,15 @@ impl<'a> Display<'a> {
         }
     }
 
-    pub fn display_service2(
+    pub fn display_service2<I2C, CommE>(
         &mut self,
-        i2c: i2c::I2cDriver,
+        i2c: I2C,
+        //i2c: i2c::I2cDriver,
         recv: mpsc::Receiver<DisplayMessage>,
-    ) -> Result<()> {
+    ) -> Result<()> 
+    where 
+        I2C: embedded_hal::i2c::I2c<Error = CommE> ,
+    {
         println!("display_service hit");
         //this Builder is the specific SH1106 builder
         let mut display: GraphicsMode<I2cInterface<i2c::I2cDriver>> = Builder::new()
