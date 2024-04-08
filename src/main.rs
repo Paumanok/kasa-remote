@@ -32,6 +32,7 @@ pub struct Config {
     target_ip: &'static str,
 }
 
+
 fn main() -> Result<()> {
     // It is necessary to call this function once. Otherwise some patches to the runtime
     // implemented by esp-idf-sys might not link properly. See https://github.com/esp-rs/esp-idf-template/issues/71
@@ -78,8 +79,9 @@ fn main() -> Result<()> {
 
     let config = i2c::I2cConfig::new().baudrate(400.kHz().into());
     let i2c = i2c::I2cDriver::new(i2c, sda, scl, &config)?;
-    let i2c_mutex  = Arc::new(Mutex::new(i2c));
-    let i2c_mutex_device = MutexDevice::new( &i2c_mutex);
+    let i2c_mutex = Box::new(Mutex::new(i2c));
+    let i2c_static_ref: &'static mut Mutex<i2c::I2cDriver> = Box::leak(i2c_mutex);
+    let i2c_mutex_device = MutexDevice::new( i2c_static_ref);
     //let bus: &'static _ = shared_bus::new_std!(i2c::I2cDriver = i2c).unwrap();
     //let i2c_display_proxy = bus.acquire_i2c();
     //let i2c_max170xx_proxy = bus.acquire_i2c();
