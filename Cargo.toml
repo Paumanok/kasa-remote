@@ -36,6 +36,7 @@ sh1106 = {git = "https://github.com/techmccat/sh1106.git", branch="hal-1"}
 max170xx = "0.1.1"
 shared-bus = {version = "0.3.1", features=['std']}
 embedded-hal = {version ='^1.0.0'}
+embedded-hal-bus = {version="0.1.0", features=['std']}
 #embedded-time = "0.12.1"
 
 [build-dependencies]

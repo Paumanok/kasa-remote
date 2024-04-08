@@ -8,7 +8,8 @@ use esp_idf_svc::hal::prelude::Peripherals;
 use esp_idf_svc::hal::prelude::*;
 use esp_idf_svc::hal::task::thread::ThreadSpawnConfiguration;
 use esp_idf_svc::hal::{gpio, i2c};
-use std::sync::mpsc;
+use embedded_hal_bus::i2c::MutexDevice;
+use std::sync::{ mpsc,Arc, Mutex};
 use std::thread;
 
 //use wifi::wifi;
@@ -77,10 +78,11 @@ fn main() -> Result<()> {
 
     let config = i2c::I2cConfig::new().baudrate(400.kHz().into());
     let i2c = i2c::I2cDriver::new(i2c, sda, scl, &config)?;
-
-    let bus: &'static _ = shared_bus::new_std!(i2c::I2cDriver = i2c).unwrap();
-    let i2c_display_proxy = bus.acquire_i2c();
-    let i2c_max170xx_proxy = bus.acquire_i2c();
+    let i2c_mutex  = Arc::new(Mutex::new(i2c));
+    let i2c_mutex_device = MutexDevice::new( &i2c_mutex);
+    //let bus: &'static _ = shared_bus::new_std!(i2c::I2cDriver = i2c).unwrap();
+    //let i2c_display_proxy = bus.acquire_i2c();
+    //let i2c_max170xx_proxy = bus.acquire_i2c();
     
 
 
@@ -99,8 +101,8 @@ fn main() -> Result<()> {
     .unwrap();
 
     let _d_thread = thread::Builder::new().stack_size(10000).spawn(move || {
-        //let _ = Display::new().display_service(i2c, rs_disp);
-        let _ = Display::new().display_service2(i2c_display_proxy, disp_rx);
+        //let _ = Display::new().display_service(i2c, rs_disp);:#![warn()]
+        let _ = Display::new().display_service2(i2c_mutex_device, disp_rx);
     });
 
     ThreadSpawnConfiguration {
@@ -132,7 +134,7 @@ fn main() -> Result<()> {
 
     log::info!("Hello, after thread spawn");
     
-    let mut sensor = max170xx::Max17048::new(i2c_max170xx_proxy);
+    //let mut sensor = max170xx::Max17048::new(i2c_mutex);
     loop {
         std::thread::sleep(std::time::Duration::from_millis(1000));
 
