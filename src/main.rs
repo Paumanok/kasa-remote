@@ -80,13 +80,14 @@ fn main() -> Result<()> {
     let config = i2c::I2cConfig::new().baudrate(400.kHz().into());
     let i2c = i2c::I2cDriver::new(i2c, sda, scl, &config)?;
     let i2c_mutex = Box::new(Mutex::new(i2c));
-    let i2c_static_ref: &'static mut Mutex<i2c::I2cDriver> = Box::leak(i2c_mutex);
-    let i2c_mutex_device = MutexDevice::new( i2c_static_ref);
-    //let bus: &'static _ = shared_bus::new_std!(i2c::I2cDriver = i2c).unwrap();
-    //let i2c_display_proxy = bus.acquire_i2c();
-    //let i2c_max170xx_proxy = bus.acquire_i2c();
-    
-
+    let bus = &*Box::leak(i2c_mutex);
+    let device1 = MutexDevice::new(bus);
+    let device2 = MutexDevice::new(bus);
+    //let i2c_static_ref: &'static mut Mutex<i2c::I2cDriver> = Box::leak(i2c_mutex);
+    //let mut i2c_mutex_device = MutexDevice::new( i2c_static_ref);
+    //let i2c_arc = Arc::new(i2c_mutex_device); 
+    //let i2c_arc_1 = Arc::clone(&i2c_arc);
+    //let i2c_arc_2 = Arc::clone(&i2c_arc);
 
     let (but_tx, but_rx) = mpsc::channel();
     let (disp_tx, disp_rx) = mpsc::channel::<DisplayMessage>();
@@ -104,7 +105,7 @@ fn main() -> Result<()> {
 
     let _d_thread = thread::Builder::new().stack_size(10000).spawn(move || {
         //let _ = Display::new().display_service(i2c, rs_disp);:#![warn()]
-        let _ = Display::new().display_service2(i2c_mutex_device, disp_rx);
+        let _ = Display::new().display_service2(device1, disp_rx);
     });
 
     ThreadSpawnConfiguration {
@@ -136,10 +137,10 @@ fn main() -> Result<()> {
 
     log::info!("Hello, after thread spawn");
     
-    //let mut sensor = max170xx::Max17048::new(i2c_mutex);
+    let mut sensor = max170xx::Max17048::new(device2);
     loop {
         std::thread::sleep(std::time::Duration::from_millis(1000));
-
+        log::info!("state of charge: {:}", sensor.soc().unwrap());
         if !_wifi.is_connected().unwrap() {
             log::info!("wifi disconnected");
             std::thread::sleep(std::time::Duration::from_secs(1)); //sleep a bit

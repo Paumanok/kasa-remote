@@ -10,6 +10,7 @@ use rust_kasa::kasa_protocol;
 pub mod buttons;
 pub mod display;
 pub mod rotary;
+pub mod battery_monitor;
 
 #[toml_cfg::toml_config]
 pub struct Config {

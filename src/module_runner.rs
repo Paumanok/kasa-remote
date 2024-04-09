@@ -41,11 +41,12 @@ impl RemoteModule for TestModule {
     fn release_channel(&mut self) -> Option<mpsc::Receiver<RemoteMessage>> {
         let rec = replace(&mut self.receiver, None);
         let _send = replace(&mut self.sender, None);
-        return rec;
+        rec
+
     }
     
     fn get_display_name(self) -> String {
-        return "Test".to_string()
+        "Test".to_string()
     }
 
     fn run(&mut self) {
@@ -148,6 +149,7 @@ impl ModuleRunner {
         Self {
             focus: Focus::Outer,
             btn_action: btn_channel,
+            //modules: modules,
             modules: vec![
                 Box::new(kasa_control::KasaControl::new()),
                 Box::new(TestModule {
@@ -194,8 +196,7 @@ impl ModuleRunner {
     }
 
     fn check_buttons(&mut self) {
-        match self.btn_action.recv_timeout(Duration::from_millis(10)) {
-            Ok(event) => {
+        if let Ok(event) = self.btn_action.recv_timeout(Duration::from_millis(10)) {
                 log::info!("btn press registered: {:}", event);
                 if event == 1 {
                     self.move_focus();
@@ -227,8 +228,6 @@ impl ModuleRunner {
                     });
                 }
             }
-            _ => (), //dont care about timeouts
-        };
     }
 
     fn create_module_thread(&mut self) {

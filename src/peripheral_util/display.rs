@@ -7,7 +7,6 @@ use embedded_graphics::{
 };
 use esp_idf_svc::hal::i2c;
 use sh1106::{displayrotation::DisplayRotation, prelude::*, Builder};
-use shared_bus::I2cProxy;
 use std::sync::{mpsc, Arc, Mutex};
 
 use crate::peripheral_util::{Mode, RemoteState};
@@ -64,7 +63,7 @@ impl<'a> Display<'a> {
 
     pub fn display_service2<I2C>(
         &mut self,
-        i2c: I2C,
+        i2c:  I2C,
         //i2c: i2c::I2cDriver,
         recv: mpsc::Receiver<DisplayMessage>,
     ) -> Result<()> 
