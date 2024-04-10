@@ -1,6 +1,6 @@
 use crate::peripheral_util::{
     buttons,
-    display::{Display, DisplayMessage},
+    display::{Display, DisplayMessage, DisplayLine, TextSize},
 };
 use anyhow::{bail, Result};
 use esp_idf_svc::eventloop::EspSystemEventLoop;
@@ -117,7 +117,7 @@ fn main() -> Result<()> {
     .set()
     .unwrap();
 
-    let mut md = crate::module_runner::ModuleRunner::new(but_rx, disp_tx);
+    let mut md = crate::module_runner::ModuleRunner::new(but_rx, disp_tx.clone());
     let _e_thread = thread::Builder::new().stack_size(10000).spawn(move || {
         let _ = crate::module_runner::runner_service(&mut md);
     });
@@ -140,7 +140,23 @@ fn main() -> Result<()> {
     let mut sensor = max170xx::Max17048::new(device2);
     loop {
         std::thread::sleep(std::time::Duration::from_millis(1000));
-        log::info!("state of charge: {:}", sensor.soc().unwrap());
+        let soc = sensor.soc().unwrap();
+        log::info!("state of charge: {:}", soc);
+
+        let msg = DisplayMessage {
+            lines: vec![
+                DisplayLine {
+                    line: { 
+                        format!("Battery SOC {:}", soc)
+                    },
+                    size: TextSize::Normal,
+                    x_offset: 20,
+                    y_offset: 0,
+                },
+            ],
+        };
+
+        let _ = disp_tx.send(msg);
         if !_wifi.is_connected().unwrap() {
             log::info!("wifi disconnected");
             std::thread::sleep(std::time::Duration::from_secs(1)); //sleep a bit
