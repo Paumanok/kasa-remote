@@ -2,6 +2,7 @@ use anyhow::Result;
 use embedded_graphics::{
     mono_font::{ascii::FONT_5X8, ascii::FONT_6X10, MonoTextStyle, MonoTextStyleBuilder},
     pixelcolor::BinaryColor,
+    primitives::Rectangle,
     prelude::*,
     text::{Baseline, Text},
 };
@@ -25,6 +26,7 @@ pub struct DisplayLine {
 
 pub struct DisplayMessage {
     pub lines: Vec<DisplayLine>,
+    pub status_line: bool,
 }
 
 pub struct Display<'a> {
@@ -88,12 +90,18 @@ impl<'a> Display<'a> {
         )
         .draw(&mut display)
         .unwrap();
-
+        
         display.flush().unwrap();
+        display.clear();
         loop {
-            display.clear();
+            //display.clear();
             match recv.try_recv() {
                 Ok(msg) => {
+                    if msg.status_line {
+                        display.fill_solid( &Rectangle::new(Point::new(100, 0),Size::new(30,10)), BinaryColor::Off);
+                    } else {
+                        display.fill_solid( &Rectangle::new(Point::new(0, 15),Size::new(128,44)), BinaryColor::Off);
+                    }
                     //render what was received
                     for line in msg.lines {
                         Text::with_baseline(

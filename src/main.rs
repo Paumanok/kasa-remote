@@ -147,16 +147,19 @@ fn main() -> Result<()> {
             lines: vec![
                 DisplayLine {
                     line: { 
-                        format!("Battery SOC {:}", soc)
+                        format!("{:}%", soc as i32)
                     },
                     size: TextSize::Normal,
-                    x_offset: 20,
+                    x_offset: 100,
                     y_offset: 0,
                 },
             ],
+            status_line: true,
         };
 
         let _ = disp_tx.send(msg);
+
+
         if !_wifi.is_connected().unwrap() {
             log::info!("wifi disconnected");
             std::thread::sleep(std::time::Duration::from_secs(1)); //sleep a bit

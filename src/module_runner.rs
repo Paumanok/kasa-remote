@@ -79,6 +79,7 @@ impl RemoteModule for TestModule {
                         x_offset: 20,
                         y_offset: 20,
                     }],
+                    status_line: false,
                 });
             }
 

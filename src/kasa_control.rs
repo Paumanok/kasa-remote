@@ -92,6 +92,7 @@ impl KasaControl {
                     y_offset: 50,
                 },
             ],
+            status_line: false,
         }
     }
 
