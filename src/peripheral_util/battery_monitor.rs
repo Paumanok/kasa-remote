@@ -51,7 +51,7 @@ impl BatteryMonitor {
                         },
                     ],
                     status_line: true,
-                    //clear_rect: self.clear_rect.clone(),
+                    clear_rect: self.clear_rect.clone(),
                 };
 
                 let _ = disp_tx.send(msg);

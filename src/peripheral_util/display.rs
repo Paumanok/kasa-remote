@@ -27,7 +27,7 @@ pub struct DisplayLine {
 pub struct DisplayMessage {
     pub lines: Vec<DisplayLine>,
     pub status_line: bool,
-    //pub clear_rect: Rectangle,
+    pub clear_rect: Rectangle,
 }
 
 pub struct Display<'a> {
@@ -109,7 +109,7 @@ impl<'a> Display<'a> {
             //display.clear();
             match recv.try_recv() {
                 Ok(msg) => {
-                    //let _ = display.fill_solid(&msg.clear_rect, BinaryColor::Off);
+                    let _ = display.fill_solid(&msg.clear_rect, BinaryColor::Off);
                     //if msg.status_line {
                     //    display.fill_solid( &Rectangle::new(Point::new(100, 0),Size::new(30,10)), BinaryColor::Off);
                     //} else {

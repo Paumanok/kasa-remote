@@ -96,7 +96,7 @@ impl KasaControl {
                 },
             ],
             status_line: false,
-            //clear_rect: Rectangle::new(Point::new(0, 15),Size::new(128,44)),
+            clear_rect: Rectangle::new(Point::new(0, 15),Size::new(128,44)),
         }
     }
 
