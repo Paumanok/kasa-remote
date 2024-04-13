@@ -4,6 +4,9 @@ use std::sync::mpsc;
 use std::thread;
 use std::time::Duration;
 
+use embedded_graphics::{
+    geometry::{Point, Size},
+    primitives:: Rectangle};
 use crate::kasa_control;
 use crate::peripheral_util::display::{DisplayLine, DisplayMessage, TextSize};
 
@@ -80,6 +83,7 @@ impl RemoteModule for TestModule {
                         y_offset: 20,
                     }],
                     status_line: false,
+                    //clear_rect: Rectangle::new(Point::new(0, 15),Size::new(128,44)),
                 });
             }
 

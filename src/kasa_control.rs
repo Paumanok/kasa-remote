@@ -1,6 +1,9 @@
 use crate::module_runner::{RemoteMessage, RemoteModule};
 use crate::peripheral_util::display::{DisplayLine, DisplayMessage, TextSize};
 use crate::CONFIG;
+use embedded_graphics::{
+    geometry::{Point, Size},
+    primitives:: Rectangle};
 use rust_kasa::kasa_protocol;
 use std::mem::replace;
 use std::net::TcpStream;
@@ -93,6 +96,7 @@ impl KasaControl {
                 },
             ],
             status_line: false,
+            //clear_rect: Rectangle::new(Point::new(0, 15),Size::new(128,44)),
         }
     }
 

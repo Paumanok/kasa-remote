@@ -1,77 +1,66 @@
-use crate::module_runner::{RemoteMessage, RemoteModule};
+use anyhow::Result;
 use crate::peripheral_util::display::{DisplayLine, DisplayMessage, TextSize};
-use esp_idf_svc::hal::i2c::{self, I2cDriver};
-use std::mem::replace;
+use embedded_graphics::{
+    geometry::{Point, Size},
+    primitives:: Rectangle};
 use std::sync::mpsc;
 
 use max170xx::Max17048;
 
 pub struct BatteryMonitor{
-    receiver: Option<mpsc::Receiver<RemoteMessage>>,
-    sender: Option<mpsc::Sender<DisplayMessage>>,
-    //i2c: embedded_hal::i2c::I2c,
-    soc: f32,
+    last_soc: i32,
+    clear_rect: Rectangle,
 }
 
 impl BatteryMonitor {
     
-    pub fn new() -> BatteryMonitor 
+    pub fn new() -> Self
     {
         BatteryMonitor {
-            receiver: None,
-            sender: None,
-            soc: 0.0,
+            last_soc: 0,
+            clear_rect: Rectangle::new(Point::new(100, 0),Size::new(30,10)), 
+        }
+    }
+
+    pub fn battery_service<I2C>(
+        &mut self,
+        i2c:  I2C,
+        disp_tx: mpsc::Sender<DisplayMessage>,
+    ) -> Result<()> 
+    where 
+        I2C: embedded_hal::i2c::I2c,
+    {
+
+        let mut sensor = Max17048::new(i2c);
+
+        loop {
+
+            let soc = sensor.soc().unwrap() as i32;
+            //log::info!("state of charge: {:}", soc);
+            //log::info!("last: {:}", last);
+            if self.last_soc != soc {
+                let msg = DisplayMessage {
+                    lines: vec![
+                        DisplayLine {
+                            line: { 
+                                format!("{:}%", soc)
+                            },
+                            size: TextSize::Normal,
+                            x_offset: 100,
+                            y_offset: 0,
+                        },
+                    ],
+                    status_line: true,
+                    //clear_rect: self.clear_rect.clone(),
+                };
+
+                let _ = disp_tx.send(msg);
+                self.last_soc = soc;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(30000));
+
         }
     }
 
 }
 
-impl RemoteModule for BatteryMonitor {
-     
-    fn set_channel(
-        &mut self,
-        receiver: mpsc::Receiver<RemoteMessage>,
-        sender: mpsc::Sender<DisplayMessage>,
-    ) {
-        log::info!("setting channel");
-        self.receiver = Some(receiver);
-        self.sender = Some(sender);
-    }
-
-    fn release_channel(&mut self) -> Option<mpsc::Receiver<RemoteMessage>> {
-        let rec = replace(&mut self.receiver, None);
-        let _send = replace(&mut self.sender, None);
-        return rec;
-    }
-    
-    fn get_display_name(self) -> String {
-        return "BatteryMonitor".to_string()
-    }
-
-    fn run(&mut self) {
-        loop {
-            std::thread::sleep(std::time::Duration::from_millis(1000));
-            //let mut sensor = max170xx::Max17048::new(self.i2c);
-            //let soc = sensor.soc().unwrap();
-            //
-            //let msg = DisplayMessage {
-            //    lines: vec![
-            //        DisplayLine {
-            //            line: { 
-            //                format!("Battery SOC {:}", soc)
-            //            },
-            //            size: TextSize::Normal,
-            //            x_offset: 20,
-            //            y_offset: 20,
-            //        },
-            //    ],
-            //};
-
-            //if let Some(tx) = &self.sender {
-            //    let _ = tx.send(msg);
-            //}
-
-        };
-
-    }
-}

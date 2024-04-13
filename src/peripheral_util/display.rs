@@ -27,6 +27,7 @@ pub struct DisplayLine {
 pub struct DisplayMessage {
     pub lines: Vec<DisplayLine>,
     pub status_line: bool,
+    //pub clear_rect: Rectangle,
 }
 
 pub struct Display<'a> {
@@ -60,6 +61,17 @@ impl<'a> Display<'a> {
             return (4, self.text_normal);
         } else {
             return (2, self.text_small);
+        }
+    }
+
+    fn lazier_font_selector(
+        &mut self,
+        small: bool
+    ) ->  MonoTextStyle<'a, BinaryColor> {
+        if small {
+            return self.text_small;
+        } else {
+            return self.text_normal;
         }
     }
 
@@ -97,17 +109,18 @@ impl<'a> Display<'a> {
             //display.clear();
             match recv.try_recv() {
                 Ok(msg) => {
-                    if msg.status_line {
-                        display.fill_solid( &Rectangle::new(Point::new(100, 0),Size::new(30,10)), BinaryColor::Off);
-                    } else {
-                        display.fill_solid( &Rectangle::new(Point::new(0, 15),Size::new(128,44)), BinaryColor::Off);
-                    }
+                    //let _ = display.fill_solid(&msg.clear_rect, BinaryColor::Off);
+                    //if msg.status_line {
+                    //    display.fill_solid( &Rectangle::new(Point::new(100, 0),Size::new(30,10)), BinaryColor::Off);
+                    //} else {
+                    //    display.fill_solid( &Rectangle::new(Point::new(0, 15),Size::new(128,44)), BinaryColor::Off);
+                    //}
                     //render what was received
                     for line in msg.lines {
                         Text::with_baseline(
                             line.line.as_str(),
                             Point::new(line.x_offset, line.y_offset),
-                            self.text_normal,
+                            self.lazier_font_selector(msg.status_line),
                             Baseline::Top,
                         )
                         .draw(&mut display)

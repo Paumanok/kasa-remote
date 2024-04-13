@@ -1,6 +1,5 @@
 use crate::peripheral_util::{
-    buttons,
-    display::{Display, DisplayMessage, DisplayLine, TextSize},
+    battery_monitor::{self, BatteryMonitor}, buttons, display::{Display, DisplayLine, DisplayMessage, TextSize}
 };
 use anyhow::{bail, Result};
 use esp_idf_svc::eventloop::EspSystemEventLoop;
@@ -70,7 +69,7 @@ fn main() -> Result<()> {
     let i2c_mutex = Box::new(Mutex::new(i2c));
     let bus = &*Box::leak(i2c_mutex);
     let device1 = MutexDevice::new(bus);
-    let device2 = MutexDevice::new(bus);
+   // let device2 = MutexDevice::new(bus);
     //let i2c_static_ref: &'static mut Mutex<i2c::I2cDriver> = Box::leak(i2c_mutex);
     //let mut i2c_mutex_device = MutexDevice::new( i2c_static_ref);
     //let i2c_arc = Arc::new(i2c_mutex_device); 
@@ -80,6 +79,19 @@ fn main() -> Result<()> {
     let (but_tx, but_rx) = mpsc::channel();
     let (disp_tx, disp_rx) = mpsc::channel::<DisplayMessage>();
 
+    log::info!("##################### ssid: ##########{:}",app_config.wifi_ssid);
+    let mut _wifi = match wifi::wifi(
+        app_config.wifi_ssid,
+        app_config.wifi_psk,
+        peripherals.modem,
+        sysloop,
+        false,
+    ) {
+        Ok(inner) => inner,
+        Err(err) => {
+            bail!("Could not connect to Wi-Fi network: {:?}", err)
+        }
+    };
     //this apparently works for the anteceding thread builder call
     //https://github.com/esp-rs/esp-idf-hal/issues/228#issuecomment-1676035648
     ThreadSpawnConfiguration {
@@ -122,47 +134,48 @@ fn main() -> Result<()> {
     let _e_thread = thread::Builder::new().stack_size(10000).spawn(move || {
         let _ = buttons::button_service(buttons, but_tx.clone());
     });
+   
+    //ThreadSpawnConfiguration {
+    //    name: Some("battery_service\0".as_bytes()),
+    //    stack_size: 5000,
+    //    priority: 17,
+    //    ..Default::default()
+    //}
+    //.set()
+    //.unwrap();
+
+    //let _e_thread = thread::Builder::new().stack_size(5000).spawn(move || {
+    //    let _ = BatteryMonitor::new().battery_service(device2, disp_tx.clone());
+    //});
 
     log::info!("Hello, after thread spawn");
     
-    let mut _wifi = match wifi::wifi(
-        app_config.wifi_ssid,
-        app_config.wifi_psk,
-        peripherals.modem,
-        sysloop,
-        false,
-    ) {
-        Ok(inner) => inner,
-        Err(err) => {
-            bail!("Could not connect to Wi-Fi network: {:?}", err)
-        }
-    };
 
-    let mut sensor = max170xx::Max17048::new(device2);
-    let mut last = 0;
+    //let mut sensor = max170xx::Max17048::new(device2);
+    //let mut last = 0;
     loop {
         std::thread::sleep(std::time::Duration::from_millis(1000));
-        let soc = sensor.soc().unwrap() as i32;
-        //log::info!("state of charge: {:}", soc);
-        //log::info!("last: {:}", last);
-        if last != soc {
-            let msg = DisplayMessage {
-                lines: vec![
-                    DisplayLine {
-                        line: { 
-                            format!("{:}%", soc)
-                        },
-                        size: TextSize::Normal,
-                        x_offset: 100,
-                        y_offset: 0,
-                    },
-                ],
-                status_line: true,
-            };
+        //let soc = sensor.soc().unwrap() as i32;
+        ////log::info!("state of charge: {:}", soc);
+        ////log::info!("last: {:}", last);
+        //if last != soc {
+        //    let msg = DisplayMessage {
+        //        lines: vec![
+        //            DisplayLine {
+        //                line: { 
+        //                    format!("{:}%", soc)
+        //                },
+        //                size: TextSize::Normal,
+        //                x_offset: 100,
+        //                y_offset: 0,
+        //            },
+        //        ],
+        //        status_line: true,
+        //    };
 
-            let _ = disp_tx.send(msg);
-            last = soc;
-        }
+        //    let _ = disp_tx.send(msg);
+        //    last = soc;
+        //}
 
 
         if !_wifi.is_connected().unwrap() {
