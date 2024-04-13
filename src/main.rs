@@ -69,7 +69,7 @@ fn main() -> Result<()> {
     let i2c_mutex = Box::new(Mutex::new(i2c));
     let bus = &*Box::leak(i2c_mutex);
     let device1 = MutexDevice::new(bus);
-   // let device2 = MutexDevice::new(bus);
+    let device2 = MutexDevice::new(bus);
     //let i2c_static_ref: &'static mut Mutex<i2c::I2cDriver> = Box::leak(i2c_mutex);
     //let mut i2c_mutex_device = MutexDevice::new( i2c_static_ref);
     //let i2c_arc = Arc::new(i2c_mutex_device); 
@@ -135,18 +135,18 @@ fn main() -> Result<()> {
         let _ = buttons::button_service(buttons, but_tx.clone());
     });
    
-    //ThreadSpawnConfiguration {
-    //    name: Some("battery_service\0".as_bytes()),
-    //    stack_size: 5000,
-    //    priority: 17,
-    //    ..Default::default()
-    //}
-    //.set()
-    //.unwrap();
+    ThreadSpawnConfiguration {
+        name: Some("battery_service\0".as_bytes()),
+        stack_size: 5000,
+        priority: 17,
+        ..Default::default()
+    }
+    .set()
+    .unwrap();
 
-    //let _e_thread = thread::Builder::new().stack_size(5000).spawn(move || {
-    //    let _ = BatteryMonitor::new().battery_service(device2, disp_tx.clone());
-    //});
+    let _e_thread = thread::Builder::new().stack_size(5000).spawn(move || {
+        let _ = BatteryMonitor::new().battery_service(device2, disp_tx.clone());
+    });
 
     log::info!("Hello, after thread spawn");
     
