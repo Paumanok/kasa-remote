@@ -3,7 +3,8 @@ use crate::peripheral_util::display::{DisplayLine, DisplayMessage, TextSize};
 use crate::CONFIG;
 use embedded_graphics::{
     geometry::{Point, Size},
-    primitives:: Rectangle};
+    primitives::Rectangle,
+};
 use rust_kasa::kasa_protocol;
 use std::mem::replace;
 use std::net::TcpStream;
@@ -23,19 +24,21 @@ pub struct KasaControl {
 }
 
 impl KasaControl {
-    pub fn new() -> KasaControl{
-        KasaControl {
+    pub fn new() -> Self {
+        Self {
             receiver: None,
             sender: None,
             stats: vec![
-                kasa_protocol::Realtime{
+                kasa_protocol::Realtime {
                     current_ma: 0,
                     err_code: 0,
                     power_mw: 0,
                     slot_id: 0,
                     total_wh: 0,
                     voltage_mv: 0,
-                }; 7],
+                };
+                7
+            ],
             monitor_idx: 0,
             update: true,
         }
@@ -79,7 +82,7 @@ impl KasaControl {
                 },
                 DisplayLine {
                     //line: "line 2".to_string(),
-                    line:  {
+                    line: {
                         let mut outlet = String::from("");
                         for i in 1..7 {
                             if self.monitor_idx + 1 == i {
@@ -96,7 +99,7 @@ impl KasaControl {
                 },
             ],
             status_line: false,
-            clear_rect: Rectangle::new(Point::new(0, 15),Size::new(128,44)),
+            clear_rect: Rectangle::new(Point::new(0, 15), Size::new(128, 44)),
         }
     }
 
@@ -111,8 +114,8 @@ impl KasaControl {
 
     fn update_idx(&mut self, d: BoolDir) {
         match d {
-            BoolDir::Next => { self.monitor_idx +=1},
-            BoolDir::Prev => { self.monitor_idx -=1 },
+            BoolDir::Next => self.monitor_idx += 1,
+            BoolDir::Prev => self.monitor_idx -= 1,
         };
         self.update = true;
     }
@@ -134,9 +137,9 @@ impl RemoteModule for KasaControl {
         let _send = replace(&mut self.sender, None);
         return rec;
     }
-    
+
     fn get_display_name(self) -> String {
-        return "Kasa".to_string()
+        return "Kasa".to_string();
     }
 
     fn run(&mut self) {
@@ -147,13 +150,13 @@ impl RemoteModule for KasaControl {
         loop {
             std::thread::sleep(std::time::Duration::from_millis(50));
             poll_counter += 1;
-            if poll_counter == 100 { //every 5 seconds with 100mili loop delay unless toggle takes time 
+            if poll_counter == 100 {
+                //every 5 seconds with 100mili loop delay unless toggle takes time
                 poll_counter = 0;
                 if let Some(stat) = KasaControl::get_target_stat(self.monitor_idx as u8) {
                     self.stats[self.monitor_idx] = stat;
                     self.update = true;
                 }
-
             }
             if let Some(rx) = &self.receiver {
                 match rx.try_recv() {

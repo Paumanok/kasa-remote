@@ -1,10 +1,5 @@
-use crate::kasa_protocol;
-use crate::peripheral_util::Direction;
-use crate::peripheral_util::RemoteState;
-use crate::CONFIG;
 use esp_idf_svc::hal::gpio;
-use std::net::TcpStream;
-use std::sync::{mpsc::Sender, Arc, Mutex};
+use std::sync::mpsc::Sender;
 
 #[derive(Copy, Clone)]
 struct Button {
@@ -21,26 +16,6 @@ impl Buttons {
         Self {
             btns: [Button { last_state: false }; 9],
             action_tx: btn_tx,
-        }
-    }
-}
-
-fn button_action(btn_idx: usize, rs: &Arc<Mutex<RemoteState>>) {
-    let app_config = CONFIG;
-    if btn_idx <= 2 {
-        match rs.lock() {
-            Ok(mut state) => state.update_from_encoder(match btn_idx {
-                0 => Direction::CounterClockwise,
-                1 => Direction::Press,
-                2 => Direction::Clockwise,
-                _ => Direction::None,
-            }),
-            _ => (),
-        };
-        // do control button stuff
-    } else {
-        if let Ok(mut stream) = TcpStream::connect(format!("{:}:9999", app_config.target_ip)) {
-            let _res = kasa_protocol::toggle_relay_by_idx(&mut stream, btn_idx - 3);
         }
     }
 }
@@ -71,8 +46,8 @@ pub fn button_service(btn_gpio: Vec<impl gpio::IOPin + 'static>, but_tx: Sender<
     }
 
     loop {
-        for idx in 0..buttons.len() {
-            if buttons[idx].is_low() {
+        for (idx, button) in buttons.iter().enumerate() {
+            if button.is_low() {
                 if !btns.btns[idx].last_state {
                     btns.btns[idx].last_state = true;
                     log::info!("button {:} pressed", idx);

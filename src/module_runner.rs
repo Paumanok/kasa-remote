@@ -4,11 +4,12 @@ use std::sync::mpsc;
 use std::thread;
 use std::time::Duration;
 
-use embedded_graphics::{
-    geometry::{Point, Size},
-    primitives:: Rectangle};
 use crate::kasa_control;
 use crate::peripheral_util::display::{DisplayLine, DisplayMessage, TextSize};
+use embedded_graphics::{
+    geometry::{Point, Size},
+    primitives::Rectangle,
+};
 
 /*
 * What do we want this to do?
@@ -45,9 +46,8 @@ impl RemoteModule for TestModule {
         let rec = replace(&mut self.receiver, None);
         let _send = replace(&mut self.sender, None);
         rec
-
     }
-    
+
     fn get_display_name(self) -> String {
         "Test".to_string()
     }
@@ -83,7 +83,7 @@ impl RemoteModule for TestModule {
                         y_offset: 20,
                     }],
                     status_line: false,
-                    clear_rect: Rectangle::new(Point::new(0, 15),Size::new(128,44)),
+                    clear_rect: Rectangle::new(Point::new(0, 15), Size::new(128, 44)),
                 });
             }
 
@@ -104,7 +104,9 @@ fn dummy_module() -> Box<dyn RemoteModule + Send> {
         fn release_channel(&mut self) -> Option<mpsc::Receiver<RemoteMessage>> {
             None
         }
-        fn get_display_name(self) -> String { "dummy".to_string()}
+        fn get_display_name(self) -> String {
+            "dummy".to_string()
+        }
         fn run(&mut self) {}
     }
     Box::new(Dummy)
@@ -202,37 +204,37 @@ impl ModuleRunner {
 
     fn check_buttons(&mut self) {
         if let Ok(event) = self.btn_action.recv_timeout(Duration::from_millis(10)) {
-                log::info!("btn press registered: {:}", event);
-                if event == 1 {
-                    self.move_focus();
-                    if self.focus == Focus::Inner {
-                        log::info!("inner")
-                    }
+            log::info!("btn press registered: {:}", event);
+            if event == 1 {
+                self.move_focus();
+                if self.focus == Focus::Inner {
+                    log::info!("inner")
                 }
-                if event == 0 || event == 2 {
-                    log::info!("trying to switch module");
-                    if self.focus == Focus::Outer {
-                        let dir = match event {
-                            0 => SwitchDirection::Previous,
-                            2 => SwitchDirection::Next,
-                            _ => SwitchDirection::None,
-                        };
-                        //change modules
-                        self.switch_module(dir);
-                        log::info!("{:} {:}", self.module_idx, self.last_module_idx);
-                    } else {
-                        //pass to module
-                        let _ = self.module_tx.send(RemoteMessage {
-                            status: event as u32,
-                        });
-                    }
+            }
+            if event == 0 || event == 2 {
+                log::info!("trying to switch module");
+                if self.focus == Focus::Outer {
+                    let dir = match event {
+                        0 => SwitchDirection::Previous,
+                        2 => SwitchDirection::Next,
+                        _ => SwitchDirection::None,
+                    };
+                    //change modules
+                    self.switch_module(dir);
+                    log::info!("{:} {:}", self.module_idx, self.last_module_idx);
                 } else {
                     //pass to module
                     let _ = self.module_tx.send(RemoteMessage {
                         status: event as u32,
                     });
                 }
+            } else {
+                //pass to module
+                let _ = self.module_tx.send(RemoteMessage {
+                    status: event as u32,
+                });
             }
+        }
     }
 
     fn create_module_thread(&mut self) {
@@ -298,7 +300,6 @@ pub fn runner_service(mr: &mut ModuleRunner) {
             //release the channel's clone
             log::info!("module stopped");
             mr.module_rx = mr.modules[mr.last_module_idx].release_channel();
-
         } else {
             //log::info!("everything being skipped");
         }
