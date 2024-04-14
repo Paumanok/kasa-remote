@@ -56,18 +56,15 @@ impl RemoteModule for TestModule {
         self.member = 0;
         loop {
             if let Some(rx) = &self.receiver {
-                match rx.try_recv() {
-                    Ok(msg) => {
-                        if msg.status == 10 {
-                            log::info!("returning via command");
-                            log::info!("member count up to: {:}", self.member);
-                            return;
-                        } else {
-                            log::info!("got button event: {:}", msg.status);
-                        }
+                if let Ok(msg) = rx.try_recv() {
+                    if msg.status == 10 {
+                        log::info!("returning via command");
+                        log::info!("member count up to: {:}", self.member);
+                        return;
+                    } else {
+                        log::info!("got button event: {:}", msg.status);
                     }
-                    _ => (),
-                };
+                }
             } else {
                 log::info!("no channel receiver configured");
                 return;
@@ -254,8 +251,8 @@ impl ModuleRunner {
             thread::Builder::new()
                 .stack_size(10000)
                 .spawn(move || {
-                    let _ = module.run();
-                    return module;
+                    module.run();
+                    module
                 })
                 .unwrap(),
         );

@@ -54,7 +54,7 @@ pub fn button_service(btn_gpio: Vec<impl gpio::IOPin + 'static>, but_tx: Sender<
 
                     button_action_generic(idx, &btns);
                 }
-                //std::thread::sleep(std::time::Duration::from_millis(100));
+                std::thread::sleep(std::time::Duration::from_millis(50));
             } else {
                 btns.btns[idx].last_state = false;
             }

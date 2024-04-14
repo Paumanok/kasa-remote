@@ -114,27 +114,27 @@ fn main() -> Result<()> {
 
     ThreadSpawnConfiguration {
         name: Some("button_service\0".as_bytes()),
-        stack_size: 10000,
+        stack_size: 4000,
         priority: 15,
         ..Default::default()
     }
     .set()
     .unwrap();
 
-    let _e_thread = thread::Builder::new().stack_size(10000).spawn(move || {
+    let _e_thread = thread::Builder::new().stack_size(4000).spawn(move || {
         buttons::button_service(buttons, but_tx.clone());
     });
 
     ThreadSpawnConfiguration {
         name: Some("battery_service\0".as_bytes()),
-        stack_size: 5000,
+        stack_size: 2000,
         priority: 17,
         ..Default::default()
     }
     .set()
     .unwrap();
 
-    let _e_thread = thread::Builder::new().stack_size(5000).spawn(move || {
+    let _e_thread = thread::Builder::new().stack_size(2000).spawn(move || {
         let _ = BatteryMonitor::new().battery_service(device2, disp_tx.clone());
     });
 
