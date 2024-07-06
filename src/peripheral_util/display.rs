@@ -27,6 +27,24 @@ pub struct DisplayMessage {
     pub clear_rect: Rectangle,
 }
 
+pub fn display_error(sender: mpsc::Sender<DisplayMessage>, error_msg: String) {
+    
+    let _ = sender.send(
+        DisplayMessage {
+            lines: vec![
+                DisplayLine {
+                    line: error_msg,
+                    size: TextSize::Small,
+                    x_offset: 20,
+                    y_offset: 20,
+                },
+            ],
+            status_line: false,
+            clear_rect: Rectangle::new(Point::new(0,15), Size::new(128,44)),
+        }
+    );
+}
+
 pub struct Display<'a> {
     text_normal: MonoTextStyle<'a, BinaryColor>,
     text_small: MonoTextStyle<'a, BinaryColor>,

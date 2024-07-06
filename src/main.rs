@@ -1,7 +1,8 @@
 use crate::peripheral_util::{
     battery_monitor::BatteryMonitor,
     buttons,
-    display::{Display, DisplayMessage},
+    wifi,
+    display::{display_error, Display, DisplayMessage},
 };
 use anyhow::{bail, Result};
 use embedded_hal_bus::i2c::MutexDevice;
@@ -16,7 +17,6 @@ use std::thread;
 pub mod kasa_control;
 pub mod module_runner;
 pub mod peripheral_util;
-pub mod wifi;
 
 /// This configuration is picked up at compile time by `build.rs` from the
 /// file `cfg.toml`.
@@ -29,6 +29,7 @@ pub struct Config {
     #[default("127.0.0.1")]
     target_ip: &'static str,
 }
+
 
 fn main() -> Result<()> {
     // It is necessary to call this function once. Otherwise some patches to the runtime
@@ -106,10 +107,12 @@ fn main() -> Result<()> {
     }
     .set()
     .unwrap();
-
+    let runner_dtx = disp_tx.clone();
     let mut md = crate::module_runner::ModuleRunner::new(but_rx, disp_tx.clone());
     let _e_thread = thread::Builder::new().stack_size(10000).spawn(move || {
         module_runner::runner_service(&mut md);
+        //if module_runner is dying, will it kill child threads?
+        display_error(runner_dtx, "Module_Runner\r\nExited".to_string());
     });
 
     ThreadSpawnConfiguration {

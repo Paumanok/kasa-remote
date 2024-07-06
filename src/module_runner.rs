@@ -97,7 +97,7 @@ fn dummy_module() -> Box<dyn RemoteModule + Send> {
             _receiver: mpsc::Receiver<RemoteMessage>,
             _sender: mpsc::Sender<DisplayMessage>,
         ) {
-        } //this wont be called
+        } 
         fn release_channel(&mut self) -> Option<mpsc::Receiver<RemoteMessage>> {
             None
         }
@@ -117,7 +117,6 @@ pub trait RemoteModule {
     );
     fn release_channel(&mut self) -> Option<mpsc::Receiver<RemoteMessage>>;
     fn get_display_name(self) -> String;
-    //TODO: Change these to set/release the shared resource
     fn run(&mut self);
 }
 
@@ -185,7 +184,6 @@ impl ModuleRunner {
         let n_mod = self.modules.len();
         match dir {
             SwitchDirection::Previous => {
-                log::info!("previous");
                 if self.module_idx > 0 {
                     self.module_idx -= 1;
                 }
@@ -200,8 +198,9 @@ impl ModuleRunner {
     }
 
     fn check_buttons(&mut self) {
+        //98.999% of the time the buttons wont be pressed, let it time out quick
         if let Ok(event) = self.btn_action.recv_timeout(Duration::from_millis(10)) {
-            log::info!("btn press registered: {:}", event);
+            log::info!("Press Registered: {:}", event);
             if event == 1 {
                 self.move_focus();
                 if self.focus == Focus::Inner {
@@ -209,7 +208,6 @@ impl ModuleRunner {
                 }
             }
             if event == 0 || event == 2 {
-                log::info!("trying to switch module");
                 if self.focus == Focus::Outer {
                     let dir = match event {
                         0 => SwitchDirection::Previous,
@@ -260,21 +258,19 @@ impl ModuleRunner {
 }
 
 pub fn runner_service(mr: &mut ModuleRunner) {
-    //poll for button action channel
-    log::info!("does this even start?");
     loop {
-        //99.999% of the time the buttons wont be pressed, let it time out quick
+        //check for any button events and respond
         mr.check_buttons();
 
         if !mr.module_started {
             log::info!("module not started, lets try to start it");
-            //module not started,
-            //time to start the next one
+            //do we currently own the reciever in order to give it away
             if mr.module_rx.is_some() {
-                log::info!("is some");
+                //take runner's receiver
                 let rx = replace(&mut mr.module_rx, None).unwrap();
+                //give the receiver and sender to module that is being started
                 mr.modules[mr.module_idx].set_channel(rx, mr.state_tx.clone());
-                mr.module_rx = None;
+                mr.module_rx = None; //is this redundant?
             }
             mr.create_module_thread();
             mr.module_started = true;
@@ -283,23 +279,21 @@ pub fn runner_service(mr: &mut ModuleRunner) {
         //running module but there's been a change
         else if mr.module_started && mr.module_idx != mr.last_module_idx {
             //send exit command
+            let _ = mr.module_tx.send(RemoteMessage { status: 10 });
             //join thread that is returning, take will automatically
             //replace mr.module_handle with None
-            //std::thread::sleep(std::time::Duration::from_millis(5000));
-            let _ = mr.module_tx.send(RemoteMessage { status: 10 });
             mr.modules[mr.last_module_idx] = mr
                 .module_handle
                 .take()
                 .map(|x| x.join())
                 .unwrap()
-                .expect("failed to join mod thread");
+                .expect("Returning Module failed to join.");
             mr.module_started = false;
-            //release the channel's clone
             log::info!("module stopped");
+            //release the channel's clone
             mr.module_rx = mr.modules[mr.last_module_idx].release_channel();
         } else {
             //log::info!("everything being skipped");
         }
-        //how do we determine start and stop of module
     }
 }
