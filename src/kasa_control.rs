@@ -5,7 +5,7 @@ use embedded_graphics::{
     geometry::{Point, Size},
     primitives::Rectangle,
 };
-use rust_kasa::kasa_protocol;
+use rust_kasa::{ kasa_protocol, models::Realtime };
 use std::mem::replace;
 use std::net::TcpStream;
 use std::sync::mpsc;
@@ -18,7 +18,7 @@ enum BoolDir {
 pub struct KasaControl {
     receiver: Option<mpsc::Receiver<RemoteMessage>>,
     sender: Option<mpsc::Sender<DisplayMessage>>,
-    stats: Vec<kasa_protocol::Realtime>,
+    stats: Vec<Realtime>,
     monitor_idx: usize,
     update: bool,
 }
@@ -29,7 +29,7 @@ impl KasaControl {
             receiver: None,
             sender: None,
             stats: vec![
-                kasa_protocol::Realtime {
+                Realtime {
                     current_ma: 0,
                     err_code: 0,
                     power_mw: 0,
@@ -43,17 +43,17 @@ impl KasaControl {
             update: true,
         }
     }
-    pub fn get_target_stat(idx: u8) -> Option<kasa_protocol::Realtime> {
+    pub fn get_target_stat(idx: u8) -> Option<Realtime> {
         let app_config = CONFIG;
         let mut stream = TcpStream::connect(format!("{:}:9999", app_config.target_ip)).ok()?;
-        kasa_protocol::get_realtime_by_idx(&mut stream, idx.into())
+        Some(kasa_protocol::get_realtime_by_idx(&mut stream, idx.into()).ok()?)
     }
 
-    pub fn get_all_stats() -> Option<kasa_protocol::Realtime> {
+    pub fn get_all_stats() -> Option<Realtime> {
         let app_config = CONFIG;
         let mut stream = TcpStream::connect(format!("{:}:9999", app_config.target_ip)).ok()?;
-        let stats_vec = kasa_protocol::get_all_realtime(&mut stream)?;
-        Some(kasa_protocol::Realtime {
+        let stats_vec = kasa_protocol::get_all_realtime(&mut stream).ok()?;
+        Some(Realtime {
             current_ma: stats_vec.iter().fold(0u32, |sum, rt| sum + rt.current_ma),
             err_code: 0,
             power_mw: stats_vec.iter().fold(0u32, |sum, rt| sum + rt.power_mw),
