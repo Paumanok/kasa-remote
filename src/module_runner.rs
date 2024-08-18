@@ -4,8 +4,8 @@ use std::sync::mpsc;
 use std::thread;
 use std::time::Duration;
 
-use crate::kasa_control;
-use crate::peripheral_util::display::{DisplayLine, DisplayMessage, TextSize};
+use crate::modules::{kasa_control, snake};
+use crate::peripheral_util::display::{DisplayLine, DisplayMessage, MessageType, TextSize};
 use embedded_graphics::{
     geometry::{Point, Size},
     primitives::Rectangle,
@@ -73,12 +73,12 @@ impl RemoteModule for TestModule {
             std::thread::sleep(std::time::Duration::from_millis(20));
             if let Some(tx) = &self.sender {
                 let _ = tx.send(DisplayMessage {
-                    lines: vec![DisplayLine {
+                    content: MessageType::Lines(vec![DisplayLine {
                         line: format!("counter: {:}", self.member),
                         size: TextSize::Normal,
                         x_offset: 20,
                         y_offset: 20,
-                    }],
+                    }]),
                     status_line: false,
                     clear_rect: Rectangle::new(Point::new(0, 15), Size::new(128, 44)),
                 });
@@ -97,7 +97,7 @@ fn dummy_module() -> Box<dyn RemoteModule + Send> {
             _receiver: mpsc::Receiver<RemoteMessage>,
             _sender: mpsc::Sender<DisplayMessage>,
         ) {
-        } 
+        }
         fn release_channel(&mut self) -> Option<mpsc::Receiver<RemoteMessage>> {
             None
         }
@@ -155,6 +155,7 @@ impl ModuleRunner {
             //modules: modules,
             modules: vec![
                 Box::new(kasa_control::KasaControl::new()),
+                Box::new(snake::Snake::new()),
                 Box::new(TestModule {
                     member: 0,
                     receiver: None,

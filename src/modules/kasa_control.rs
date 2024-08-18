@@ -1,11 +1,11 @@
 use crate::module_runner::{RemoteMessage, RemoteModule};
-use crate::peripheral_util::display::{DisplayLine, DisplayMessage, TextSize};
+use crate::peripheral_util::display::{DisplayLine, DisplayMessage, MessageType, TextSize};
 use crate::CONFIG;
 use embedded_graphics::{
     geometry::{Point, Size},
     primitives::Rectangle,
 };
-use rust_kasa::{ kasa_protocol, models::Realtime };
+use rust_kasa::{kasa_protocol, models::Realtime};
 use std::mem::replace;
 use std::net::TcpStream;
 use std::sync::mpsc;
@@ -66,7 +66,7 @@ impl KasaControl {
 
     fn display_line_builder(&mut self) -> DisplayMessage {
         DisplayMessage {
-            lines: vec![
+            content: MessageType::Lines(vec![
                 DisplayLine {
                     //line: "line 1".to_string(),
                     line: {
@@ -97,7 +97,7 @@ impl KasaControl {
                     x_offset: 28,
                     y_offset: 50,
                 },
-            ],
+            ]),
             status_line: false,
             clear_rect: Rectangle::new(Point::new(0, 15), Size::new(128, 44)),
         }

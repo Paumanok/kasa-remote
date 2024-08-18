@@ -1,8 +1,8 @@
 use crate::peripheral_util::{
     battery_monitor::BatteryMonitor,
     buttons,
-    wifi,
     display::{display_error, Display, DisplayMessage},
+    wifi,
 };
 use anyhow::{bail, Result};
 use embedded_hal_bus::i2c::MutexDevice;
@@ -14,8 +14,8 @@ use esp_idf_svc::hal::{gpio, i2c};
 use std::sync::{mpsc, Mutex};
 use std::thread;
 
-pub mod kasa_control;
 pub mod module_runner;
+pub mod modules;
 pub mod peripheral_util;
 
 /// This configuration is picked up at compile time by `build.rs` from the
@@ -29,7 +29,6 @@ pub struct Config {
     #[default("127.0.0.1")]
     target_ip: &'static str,
 }
-
 
 fn main() -> Result<()> {
     // It is necessary to call this function once. Otherwise some patches to the runtime
@@ -88,14 +87,14 @@ fn main() -> Result<()> {
     //https://github.com/esp-rs/esp-idf-hal/issues/228#issuecomment-1676035648
     ThreadSpawnConfiguration {
         name: Some("display_service\0".as_bytes()),
-        stack_size: 10000,
+        stack_size: 32000,
         priority: 13,
         ..Default::default()
     }
     .set()
     .unwrap();
 
-    let _d_thread = thread::Builder::new().stack_size(10000).spawn(move || {
+    let _d_thread = thread::Builder::new().stack_size(32000).spawn(move || {
         let _ = Display::new().display_service(device1, disp_rx);
     });
 

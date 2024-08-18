@@ -8,6 +8,8 @@ use std::sync::mpsc;
 
 use max170xx::Max17048;
 
+use super::display::MessageType;
+
 pub struct BatteryMonitor {
     last_soc: i32,
     clear_rect: Rectangle,
@@ -37,12 +39,12 @@ impl BatteryMonitor {
             //log::info!("last: {:}", last);
             if self.last_soc != soc {
                 let msg = DisplayMessage {
-                    lines: vec![DisplayLine {
+                    content: MessageType::Lines(vec![DisplayLine {
                         line: { format!("{:}%", soc) },
                         size: TextSize::Normal,
                         x_offset: 100,
                         y_offset: 0,
-                    }],
+                    }]),
                     status_line: true,
                     clear_rect: self.clear_rect.clone(),
                 };

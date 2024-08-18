@@ -13,36 +13,71 @@ pub enum TextSize {
     Small,
     Normal,
 }
-
+/// Display a line of text.
 pub struct DisplayLine {
+    /// The String to be displayed.
     pub line: String,
+    /// TextSize enum, Small/Normal
     pub size: TextSize,
+    /// X offset of text start
     pub x_offset: i32,
+    /// Y offset of text start
     pub y_offset: i32,
 }
 
+// two byte generic coordinate
+pub struct XY {
+    pub x: u8,
+    pub y: u8,
+}
+
+/// Display a rectangular chunk of a buffer
+pub struct DisplayBuffer {
+    /// 2d array buf binaryColors that should wrap in the rectangle
+    pub buf: Vec<BinaryColor>,
+    /// Rectangle size
+    pub size: Size,
+    /// Upper left start of Rectangle
+    pub offset: Point,
+}
+
+/// MessageType Enum
+/// There's two types of display messages
+/// First being Lines, a vector of DisplayLines that render in
+///     a single screen refresh. This will overwrite previous
+///     lines of text if offset isn't adjusted.
+/// Second, Buffer, a vector of DisplayBuffer rectangles that
+///     render in a single screen refresh. This will overwrite.
+pub enum MessageType {
+    Lines(Vec<DisplayLine>),
+    Buffer(Vec<DisplayBuffer>),
+}
+
+/// DisplayMessage
+/// The standard message format for writing to the display via
+/// the display service
 pub struct DisplayMessage {
-    pub lines: Vec<DisplayLine>,
+    //pub lines: Vec<DisplayLine>,
+    /// Message content
+    pub content: MessageType,
+    /// Draw to upper displayline for long term text that
+    /// wont need to be re-written every frame.
     pub status_line: bool,
+    /// Area of message to clear before writing
     pub clear_rect: Rectangle,
 }
 
 pub fn display_error(sender: mpsc::Sender<DisplayMessage>, error_msg: String) {
-    
-    let _ = sender.send(
-        DisplayMessage {
-            lines: vec![
-                DisplayLine {
-                    line: error_msg,
-                    size: TextSize::Small,
-                    x_offset: 20,
-                    y_offset: 20,
-                },
-            ],
-            status_line: false,
-            clear_rect: Rectangle::new(Point::new(0,15), Size::new(128,44)),
-        }
-    );
+    let _ = sender.send(DisplayMessage {
+        content: MessageType::Lines(vec![DisplayLine {
+            line: error_msg,
+            size: TextSize::Small,
+            x_offset: 20,
+            y_offset: 20,
+        }]),
+        status_line: false,
+        clear_rect: Rectangle::new(Point::new(0, 15), Size::new(128, 44)),
+    });
 }
 
 pub struct Display<'a> {
@@ -109,16 +144,28 @@ impl<'a> Display<'a> {
                 //clear part of display writer is tells us its using
                 let _ = display.fill_solid(&msg.clear_rect, BinaryColor::Off);
                 //render what was received
-                for line in msg.lines {
-                    Text::with_baseline(
-                        line.line.as_str(),
-                        Point::new(line.x_offset, line.y_offset),
-                        self.lazier_font_selector(msg.status_line),
-                        Baseline::Top,
-                    )
-                    .draw(&mut display)
-                    .unwrap();
-                }
+                match msg.content {
+                    MessageType::Lines(lines) => {
+                        println!("in match");
+                        for line in lines {
+                            Text::with_baseline(
+                                line.line.as_str(),
+                                Point::new(line.x_offset, line.y_offset),
+                                self.lazier_font_selector(msg.status_line),
+                                Baseline::Top,
+                            )
+                            .draw(&mut display)
+                            .unwrap();
+                        }
+                    }
+                    MessageType::Buffer(bufs) => {
+                        for buf in bufs {
+                            display
+                                .fill_contiguous(&Rectangle::new(buf.offset, buf.size), buf.buf)
+                                .unwrap();
+                        }
+                    }
+                };
 
                 display.flush().unwrap();
             }
