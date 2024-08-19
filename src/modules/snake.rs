@@ -11,10 +11,25 @@ use embedded_graphics::{
 use std::mem::replace;
 use std::sync::mpsc;
 
+pub enum Direction {
+    Left,
+    Right,
+    Up,
+    Down,
+}
+
+pub struct Player {
+    start: Point,
+    size: Size,
+    direction: Direction,
+}
+
 pub struct Snake {
     receiver: Option<mpsc::Receiver<RemoteMessage>>,
     sender: Option<mpsc::Sender<DisplayMessage>>,
     update: bool,
+
+    player: Player,
 }
 
 impl Snake {
@@ -23,12 +38,47 @@ impl Snake {
             receiver: None,
             sender: None,
             update: true,
+            player: Player {
+                start: Point::new(20, 15),
+                size: Size::new(20, 20),
+                direction: Direction::Left,
+            },
         }
     }
 
+    fn step(&mut self) {
+        match self.player.direction {
+            Direction::Left => {
+                match self.player.start.x {
+                    x if x > 0 => {
+                        self.player.start.x -= 1;
+                    }
+                    x if x <= 0 => {
+                        self.player.start.x += 1;
+                        self.player.direction = Direction::Right;
+                    }
+                    _ => (),
+                };
+            }
+            Direction::Right => {
+                match self.player.start.x {
+                    x if x < 108 => {
+                        self.player.start.x += 1;
+                    }
+                    x if x >= 108 => {
+                        self.player.start.x -= 1;
+                        self.player.direction = Direction::Left;
+                    }
+                    _ => (),
+                };
+            }
+            _ => (),
+        };
+    }
+
     fn display_buffer_builder(&mut self) -> DisplayMessage {
-        let start = Point::new(20, 15);
-        let size = Size::new(20, 20);
+        let start = self.player.start; //Point::new(20, 15);
+        let size = self.player.size; //Size::new(20, 20);
         DisplayMessage {
             content: MessageType::Buffer(vec![DisplayBuffer {
                 buf: [BinaryColor::On; 400].to_vec(),
@@ -65,13 +115,16 @@ impl RemoteModule for Snake {
     fn run(&mut self) {
         let mut poll_counter: usize = 0;
         loop {
-            std::thread::sleep(std::time::Duration::from_millis(500));
-
-            if poll_counter == 100 {
+            std::thread::sleep(std::time::Duration::from_millis(10));
+            poll_counter += 1;
+            if poll_counter == 10 {
                 //every 5 seconds with 100mili loop delay unless toggle takes time
                 poll_counter = 0;
                 self.update = true;
             }
+
+            self.step();
+
             if let Some(rx) = &self.receiver {
                 match rx.try_recv() {
                     Ok(msg) => {
@@ -83,10 +136,11 @@ impl RemoteModule for Snake {
                     }
                     _ => (),
                 }
+
                 if self.update {
                     let msg = self.display_buffer_builder();
                     if let Some(tx) = &self.sender {
-                        log::info!("is this sending");
+                        //log::info!("is this sending");
                         let _ = tx.send(msg);
                     }
                     self.update = false;

@@ -146,7 +146,6 @@ impl<'a> Display<'a> {
                 //render what was received
                 match msg.content {
                     MessageType::Lines(lines) => {
-                        println!("in match");
                         for line in lines {
                             Text::with_baseline(
                                 line.line.as_str(),
