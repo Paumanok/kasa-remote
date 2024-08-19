@@ -115,9 +115,10 @@ impl RemoteModule for Snake {
     fn run(&mut self) {
         let mut poll_counter: usize = 0;
         loop {
-            std::thread::sleep(std::time::Duration::from_millis(10));
+            // 24fps
+            std::thread::sleep(std::time::Duration::from_millis((1000 / 48) as u64));
             poll_counter += 1;
-            if poll_counter == 10 {
+            if poll_counter == 4 {
                 //every 5 seconds with 100mili loop delay unless toggle takes time
                 poll_counter = 0;
                 self.update = true;
