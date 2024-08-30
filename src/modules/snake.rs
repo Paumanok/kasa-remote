@@ -18,6 +18,18 @@ pub enum Direction {
     Down,
 }
 
+/// LocalButtons
+/// enum to map the numerical button events
+/// to logical controls for the snake game
+enum LocalButton {
+    Up = 4,
+    Left = 6,
+    Down = 7,
+    Right = 8,
+    Pause = 3,
+    Undef,
+}
+
 pub struct Player {
     start: Point,
     size: Size,
@@ -73,6 +85,17 @@ impl Snake {
                 };
             }
             _ => (),
+        };
+    }
+
+    fn handle_control_event(&mut self, msg: u32) {
+        let button = match msg {
+            3 => LocalButton::Pause,
+            4 => LocalButton::Up,
+            6 => LocalButton::Left,
+            7 => LocalButton::Down,
+            8 => LocalButton::Right,
+            _ => LocalButton::Undef,
         };
     }
 
@@ -133,6 +156,8 @@ impl RemoteModule for Snake {
                             self.update = true;
                             log::info!("kc exiting");
                             return;
+                        } else {
+                            self.handle_control_event(msg.status)
                         }
                     }
                     _ => (),
