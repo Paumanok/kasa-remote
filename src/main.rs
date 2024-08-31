@@ -64,6 +64,9 @@ fn main() -> Result<()> {
     let config = i2c::I2cConfig::new().baudrate(400.kHz().into());
     let i2c = i2c::I2cDriver::new(i2c, sda, scl, &config)?;
     let i2c_mutex = Box::new(Mutex::new(i2c));
+    //this next line was tricky, we're leaking the box to avoid deconstructing,
+    //and reborrowing via &* to get a place expression from the box
+    //https://haibane-tenshi.github.io/rust-reborrowing/
     let bus = &*Box::leak(i2c_mutex);
     let device1 = MutexDevice::new(bus);
     let device2 = MutexDevice::new(bus);

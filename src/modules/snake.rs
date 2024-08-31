@@ -67,7 +67,7 @@ impl Snake {
 
     fn step(&mut self) {
         if self.board.food == None {}
-        println!("{:},{:}", self.player.start.x, self.player.start.y);
+        //println!("{:},{:}", self.player.start.x, self.player.start.y);
         if !self.paused {
             match self.player.direction {
                 Direction::Left => {
@@ -107,13 +107,6 @@ impl Snake {
     }
 
     fn handle_control_event(&mut self, msg: u32) {
-        //    3 => LocalButton::Pause,
-        //    4 => LocalButton::Up,
-        //    6 => LocalButton::Left,
-        //    7 => LocalButton::Down,
-        //    8 => LocalButton::Right,
-        //    _ => LocalButton::Undef,
-
         if msg == 3 {
             self.paused = !self.paused;
         }
@@ -153,6 +146,23 @@ impl Snake {
             }]),
             status_line: true,
             clear_rect: self.score_rect,
+        }
+    }
+
+    fn clear_score(&mut self) {
+        if let Some(tx) = &self.sender {
+            //log::info!("is this sending");
+            let _ = tx.send(DisplayMessage {
+                module_name: self.get_display_name(),
+                content: MessageType::Lines(vec![DisplayLine {
+                    line: "".to_string(),
+                    size: TextSize::Normal,
+                    x_offset: 10,
+                    y_offset: 0,
+                }]),
+                status_line: true,
+                clear_rect: self.score_rect,
+            });
         }
     }
 }
@@ -196,8 +206,10 @@ impl RemoteModule for Snake {
                 match rx.try_recv() {
                     Ok(msg) => {
                         if msg.status == 10 {
-                            self.update = true;
-                            log::info!("kc exiting");
+                            //self.update = true;
+                            log::info!("snake exiting");
+                            self.paused = true;
+                            self.clear_score();
                             return;
                         } else {
                             self.handle_control_event(msg.status)

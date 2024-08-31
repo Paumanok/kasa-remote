@@ -11,20 +11,6 @@ use embedded_graphics::{
     primitives::Rectangle,
 };
 
-/*
-* What do we want this to do?
-* outer UI
-* keep track of inner/outer mode
-* button action handling
-* polling modules
-* display updates
-*
-*/
-#[derive(Clone)]
-pub struct RemoteMessage {
-    pub status: u32,
-}
-
 struct TestModule {
     member: u32,
     receiver: Option<mpsc::Receiver<RemoteMessage>>,
@@ -110,6 +96,10 @@ fn dummy_module() -> Box<dyn RemoteModule + Send> {
     Box::new(Dummy)
 }
 
+#[derive(Clone)]
+pub struct RemoteMessage {
+    pub status: u32,
+}
 pub trait RemoteModule {
     fn set_channel(
         &mut self,
