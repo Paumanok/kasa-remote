@@ -58,6 +58,7 @@ pub enum MessageType {
 /// the display service
 pub struct DisplayMessage {
     //pub lines: Vec<DisplayLine>,
+    pub module_name: String,
     /// Message content
     pub content: MessageType,
     /// Draw to upper displayline for long term text that
@@ -69,6 +70,7 @@ pub struct DisplayMessage {
 
 pub fn display_error(sender: mpsc::Sender<DisplayMessage>, error_msg: String) {
     let _ = sender.send(DisplayMessage {
+        module_name: "display_err".to_string(),
         content: MessageType::Lines(vec![DisplayLine {
             line: error_msg,
             size: TextSize::Small,
@@ -141,6 +143,7 @@ impl<'a> Display<'a> {
         display.clear();
         loop {
             if let Ok(msg) = recv.try_recv() {
+                //println!("{}", msg.module_name);
                 //clear part of display writer is tells us its using
                 let _ = display.fill_solid(&msg.clear_rect, BinaryColor::Off);
                 //render what was received
@@ -170,7 +173,9 @@ impl<'a> Display<'a> {
             }
 
             //time for ~24fps
-            std::thread::sleep(std::time::Duration::from_millis((1000 / 12) as u64));
+            //removed this sleep because the channel wasn't clearing fast enough
+            //probably should simply speed it up.
+            //std::thread::sleep(std::time::Duration::from_millis((1000 / 12) as u64));
         }
     }
 }

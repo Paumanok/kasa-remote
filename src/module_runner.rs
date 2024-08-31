@@ -48,7 +48,7 @@ impl RemoteModule for TestModule {
         rec
     }
 
-    fn get_display_name(self) -> String {
+    fn get_display_name(&self) -> String {
         "Test".to_string()
     }
 
@@ -73,6 +73,7 @@ impl RemoteModule for TestModule {
             std::thread::sleep(std::time::Duration::from_millis(20));
             if let Some(tx) = &self.sender {
                 let _ = tx.send(DisplayMessage {
+                    module_name: self.get_display_name(),
                     content: MessageType::Lines(vec![DisplayLine {
                         line: format!("counter: {:}", self.member),
                         size: TextSize::Normal,
@@ -101,7 +102,7 @@ fn dummy_module() -> Box<dyn RemoteModule + Send> {
         fn release_channel(&mut self) -> Option<mpsc::Receiver<RemoteMessage>> {
             None
         }
-        fn get_display_name(self) -> String {
+        fn get_display_name(&self) -> String {
             "dummy".to_string()
         }
         fn run(&mut self) {}
@@ -116,7 +117,7 @@ pub trait RemoteModule {
         sender: mpsc::Sender<DisplayMessage>,
     );
     fn release_channel(&mut self) -> Option<mpsc::Receiver<RemoteMessage>>;
-    fn get_display_name(self) -> String;
+    fn get_display_name(&self) -> String;
     fn run(&mut self);
 }
 

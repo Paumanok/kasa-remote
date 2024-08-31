@@ -11,6 +11,7 @@ use embedded_graphics::{
 use std::mem::replace;
 use std::sync::mpsc;
 
+#[derive(Copy, Clone)]
 pub enum Direction {
     Left,
     Right,
@@ -18,22 +19,17 @@ pub enum Direction {
     Down,
 }
 
-/// LocalButtons
-/// enum to map the numerical button events
-/// to logical controls for the snake game
-enum LocalButton {
-    Up = 4,
-    Left = 6,
-    Down = 7,
-    Right = 8,
-    Pause = 3,
-    Undef,
-}
-
 pub struct Player {
     start: Point,
     size: Size,
     direction: Direction,
+    segments: Vec<Point>,
+    score: u32,
+}
+
+pub struct Board {
+    food: Option<Point>,
+    board_rect: Rectangle,
 }
 
 pub struct Snake {
@@ -42,6 +38,9 @@ pub struct Snake {
     update: bool,
 
     player: Player,
+    board: Board,
+    paused: bool,
+    score_rect: Rectangle,
 }
 
 impl Snake {
@@ -52,50 +51,79 @@ impl Snake {
             update: true,
             player: Player {
                 start: Point::new(20, 15),
-                size: Size::new(20, 20),
+                size: Size::new(5, 5),
                 direction: Direction::Left,
+                segments: vec![Point::new(20, 15)],
+                score: 0,
             },
+            board: Board {
+                food: None,
+                board_rect: Rectangle::new(Point::new(0, 10), Size::new(128, 54)),
+            },
+            paused: false,
+            score_rect: Rectangle::new(Point::new(10, 0), Size::new(90, 10)),
         }
     }
 
     fn step(&mut self) {
-        match self.player.direction {
-            Direction::Left => {
-                match self.player.start.x {
-                    x if x > 0 => {
-                        self.player.start.x -= 1;
-                    }
-                    x if x <= 0 => {
-                        self.player.start.x += 1;
-                        self.player.direction = Direction::Right;
-                    }
-                    _ => (),
-                };
-            }
-            Direction::Right => {
-                match self.player.start.x {
-                    x if x < 108 => {
-                        self.player.start.x += 1;
-                    }
-                    x if x >= 108 => {
-                        self.player.start.x -= 1;
-                        self.player.direction = Direction::Left;
-                    }
-                    _ => (),
-                };
-            }
-            _ => (),
-        };
+        if self.board.food == None {}
+        println!("{:},{:}", self.player.start.x, self.player.start.y);
+        if !self.paused {
+            match self.player.direction {
+                Direction::Left => {
+                    match self.player.start.x {
+                        x if x > 0 => {
+                            self.player.start.x -= 1;
+                        }
+                        //x if x <= 0 => {
+                        //    self.player.start.x += 1;
+                        //    self.player.direction = Direction::Right;
+                        //}
+                        _ => (),
+                    };
+                }
+                Direction::Right => {
+                    match self.player.start.x {
+                        x if x < 108 => {
+                            self.player.start.x += 1;
+                        }
+                        //x if x >= 108 => {
+                        //    self.player.start.x -= 1;
+                        //    self.player.direction = Direction::Left;
+                        //}
+                        _ => (),
+                    };
+                }
+                Direction::Up => match self.player.start.y {
+                    y if y > 10 => self.player.start.y -= 1,
+                    _ => println!("stuck up"),
+                },
+                Direction::Down => match self.player.start.y {
+                    y if y < 57 => self.player.start.y += 1,
+                    _ => println!("stuck down: {:}", self.player.start.y),
+                },
+            };
+        }
     }
 
     fn handle_control_event(&mut self, msg: u32) {
-        let button = match msg {
-            3 => LocalButton::Pause,
-            4 => LocalButton::Up,
-            6 => LocalButton::Left,
-            7 => LocalButton::Down,
-            8 => LocalButton::Right,
-            _ => LocalButton::Undef,
+        //    3 => LocalButton::Pause,
+        //    4 => LocalButton::Up,
+        //    6 => LocalButton::Left,
+        //    7 => LocalButton::Down,
+        //    8 => LocalButton::Right,
+        //    _ => LocalButton::Undef,
+
+        if msg == 3 {
+            self.paused = !self.paused;
+        }
+        let last_dir = self.player.direction;
+        self.player.direction = match msg {
+            4 => Direction::Up,
+            6 => Direction::Left,
+            7 => Direction::Down,
+            8 => Direction::Right,
+            _ => last_dir,
         };
     }
 
@@ -103,13 +131,28 @@ impl Snake {
         let start = self.player.start; //Point::new(20, 15);
         let size = self.player.size; //Size::new(20, 20);
         DisplayMessage {
+            module_name: self.get_display_name(),
             content: MessageType::Buffer(vec![DisplayBuffer {
                 buf: [BinaryColor::On; 400].to_vec(),
                 offset: start.clone(),
                 size: size.clone(),
             }]),
             status_line: false,
-            clear_rect: Rectangle::new(Point::new(0, 15), Size::new(128, 44)),
+            clear_rect: self.board.board_rect,
+        }
+    }
+
+    fn display_score(&mut self) -> DisplayMessage {
+        DisplayMessage {
+            module_name: self.get_display_name(),
+            content: MessageType::Lines(vec![DisplayLine {
+                line: { format!("Score: {:}", self.player.score) },
+                size: TextSize::Normal,
+                x_offset: 10,
+                y_offset: 0,
+            }]),
+            status_line: true,
+            clear_rect: self.score_rect,
         }
     }
 }
@@ -131,7 +174,7 @@ impl RemoteModule for Snake {
         return rec;
     }
 
-    fn get_display_name(self) -> String {
+    fn get_display_name(&self) -> String {
         return "snake".to_string();
     }
 
@@ -164,10 +207,12 @@ impl RemoteModule for Snake {
                 }
 
                 if self.update {
-                    let msg = self.display_buffer_builder();
+                    let msgs = vec![self.display_buffer_builder(), self.display_score()];
                     if let Some(tx) = &self.sender {
                         //log::info!("is this sending");
-                        let _ = tx.send(msg);
+                        for msg in msgs {
+                            let _ = tx.send(msg);
+                        }
                     }
                     self.update = false;
                 }

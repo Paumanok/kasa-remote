@@ -39,6 +39,7 @@ impl BatteryMonitor {
             //log::info!("last: {:}", last);
             if self.last_soc != soc {
                 let msg = DisplayMessage {
+                    module_name: "bat".to_string(),
                     content: MessageType::Lines(vec![DisplayLine {
                         line: { format!("{:}%", soc) },
                         size: TextSize::Normal,

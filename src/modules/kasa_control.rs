@@ -66,6 +66,7 @@ impl KasaControl {
 
     fn display_line_builder(&mut self) -> DisplayMessage {
         DisplayMessage {
+            module_name: self.get_display_name(),
             content: MessageType::Lines(vec![
                 DisplayLine {
                     //line: "line 1".to_string(),
@@ -138,7 +139,7 @@ impl RemoteModule for KasaControl {
         return rec;
     }
 
-    fn get_display_name(self) -> String {
+    fn get_display_name(&self) -> String {
         return "Kasa".to_string();
     }
 
@@ -180,7 +181,7 @@ impl RemoteModule for KasaControl {
                 if self.update {
                     let msg = self.display_line_builder();
                     if let Some(tx) = &self.sender {
-                        log::info!("is this sending");
+                        //log::info!("is this sending");
                         let _ = tx.send(msg);
                     }
                     self.update = false;
