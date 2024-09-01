@@ -117,6 +117,7 @@ fn main() -> Result<()> {
         vec![
             Box::new(snake::Snake::new()),
             Box::new(kasa_control::KasaControl::new()),
+            Box::new(test::TestModule::new()),
         ],
     );
     let _e_thread = thread::Builder::new().stack_size(10000).spawn(move || {
