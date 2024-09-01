@@ -66,10 +66,9 @@ fn check_segment_intersection(a: &Point, b: &Point) -> bool {
 }
 
 fn get_random_point() -> Point {
-    //display area is 128x64
-    //minus the 10 for the status
-    //so 118 x 64 = 7552
-    //rand % 7552 = wrapped coord
+    //display area is 129x64
+    //this could use some work properly defining where a new point can be
+    //this works but only barely
     let randint: i32;
     let modulo = 118 * (64 - (STEP_SIZE * 2));
     //yucky yucky but I don't need to bring in the PAC crate
@@ -313,7 +312,7 @@ impl RemoteModule for Snake {
             std::thread::sleep(std::time::Duration::from_millis((1000 / 48) as u64));
             poll_counter += 1;
             if poll_counter == 8 {
-                //every 5 seconds with 100mili loop delay unless toggle takes time
+                //about every 170ms, timing is a little loose
                 poll_counter = 0;
                 self.update = true;
                 self.step();
