@@ -17,6 +17,7 @@ use std::thread;
 pub mod module_runner;
 pub mod modules;
 pub mod peripheral_util;
+use crate::modules::{kasa_control, snake, test};
 
 /// This configuration is picked up at compile time by `build.rs` from the
 /// file `cfg.toml`.
@@ -110,7 +111,14 @@ fn main() -> Result<()> {
     .set()
     .unwrap();
     let runner_dtx = disp_tx.clone();
-    let mut md = crate::module_runner::ModuleRunner::new(but_rx, disp_tx.clone());
+    let mut md = crate::module_runner::ModuleRunner::new(
+        but_rx,
+        disp_tx.clone(),
+        vec![
+            Box::new(snake::Snake::new()),
+            Box::new(kasa_control::KasaControl::new()),
+        ],
+    );
     let _e_thread = thread::Builder::new().stack_size(10000).spawn(move || {
         module_runner::runner_service(&mut md);
         //if module_runner is dying, will it kill child threads?

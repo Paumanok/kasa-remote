@@ -11,6 +11,14 @@ use embedded_graphics::{
 use std::mem::replace;
 use std::sync::mpsc;
 
+//each segment of the snake will be n x n
+const SEGMENT_SIZE: u32 = 5;
+const STEP_SIZE: i32 = SEGMENT_SIZE as i32;
+const X_MAX: i32 = 128 - STEP_SIZE;
+const X_MIN: i32 = 0;
+const Y_MAX: i32 = 64 - STEP_SIZE;
+const Y_MIN: i32 = 10; // status bar is 10 px tall
+
 #[derive(Copy, Clone)]
 pub enum Direction {
     Left,
@@ -20,7 +28,7 @@ pub enum Direction {
 }
 
 pub struct Player {
-    start: Point,
+    head: Point,
     size: Size,
     direction: Direction,
     segments: Vec<Point>,
@@ -50,10 +58,10 @@ impl Snake {
             sender: None,
             update: true,
             player: Player {
-                start: Point::new(20, 15),
-                size: Size::new(5, 5),
+                head: Point::new(20, 15),
+                size: Size::new(SEGMENT_SIZE, SEGMENT_SIZE),
                 direction: Direction::Left,
-                segments: vec![Point::new(20, 15)],
+                segments: vec![Point::new(20, 15), Point::new(25, 15), Point::new(30, 15)],
                 score: 0,
             },
             board: Board {
@@ -65,44 +73,44 @@ impl Snake {
         }
     }
 
+    fn step_segments(&mut self) {
+        self.player.segments.insert(0, self.player.head.clone());
+
+        if self.player.segments.len() > 1 {
+            self.player.segments.pop();
+        }
+    }
+
     fn step(&mut self) {
         if self.board.food == None {}
         //println!("{:},{:}", self.player.start.x, self.player.start.y);
+
+        //adjust the head's location
         if !self.paused {
             match self.player.direction {
                 Direction::Left => {
-                    match self.player.start.x {
-                        x if x > 0 => {
-                            self.player.start.x -= 1;
-                        }
-                        //x if x <= 0 => {
-                        //    self.player.start.x += 1;
-                        //    self.player.direction = Direction::Right;
-                        //}
+                    match self.player.head.x {
+                        x if x > X_MIN => self.player.head.x -= STEP_SIZE,
                         _ => (),
                     };
                 }
                 Direction::Right => {
-                    match self.player.start.x {
-                        x if x < 108 => {
-                            self.player.start.x += 1;
-                        }
-                        //x if x >= 108 => {
-                        //    self.player.start.x -= 1;
-                        //    self.player.direction = Direction::Left;
-                        //}
+                    match self.player.head.x {
+                        x if x < X_MAX => self.player.head.x += STEP_SIZE,
                         _ => (),
                     };
                 }
-                Direction::Up => match self.player.start.y {
-                    y if y > 10 => self.player.start.y -= 1,
+                Direction::Up => match self.player.head.y {
+                    y if y > Y_MIN => self.player.head.y -= STEP_SIZE,
                     _ => println!("stuck up"),
                 },
-                Direction::Down => match self.player.start.y {
-                    y if y < 57 => self.player.start.y += 1,
-                    _ => println!("stuck down: {:}", self.player.start.y),
+                Direction::Down => match self.player.head.y {
+                    y if y < Y_MAX => self.player.head.y += STEP_SIZE,
+                    _ => println!("stuck down: {:}", self.player.head.y),
                 },
             };
+            //move the segments along with the new head
+            self.step_segments();
         }
     }
 
@@ -120,16 +128,22 @@ impl Snake {
         };
     }
 
-    fn display_buffer_builder(&mut self) -> DisplayMessage {
-        let start = self.player.start; //Point::new(20, 15);
-        let size = self.player.size; //Size::new(20, 20);
+    fn display_player(&mut self) -> DisplayMessage {
+        let size = self.player.size.clone();
+
         DisplayMessage {
             module_name: self.get_display_name(),
-            content: MessageType::Buffer(vec![DisplayBuffer {
-                buf: [BinaryColor::On; 400].to_vec(),
-                offset: start.clone(),
-                size: size.clone(),
-            }]),
+            content: MessageType::Buffer(
+                self.player
+                    .segments
+                    .iter()
+                    .map(|s| DisplayBuffer {
+                        buf: [BinaryColor::On; 400].to_vec(),
+                        offset: *s,
+                        size,
+                    })
+                    .collect(),
+            ),
             status_line: false,
             clear_rect: self.board.board_rect,
         }
@@ -194,13 +208,14 @@ impl RemoteModule for Snake {
             // 24fps
             std::thread::sleep(std::time::Duration::from_millis((1000 / 48) as u64));
             poll_counter += 1;
-            if poll_counter == 4 {
+            if poll_counter == 8 {
                 //every 5 seconds with 100mili loop delay unless toggle takes time
                 poll_counter = 0;
                 self.update = true;
+                self.step();
             }
 
-            self.step();
+            //self.step();
 
             if let Some(rx) = &self.receiver {
                 match rx.try_recv() {
@@ -219,7 +234,7 @@ impl RemoteModule for Snake {
                 }
 
                 if self.update {
-                    let msgs = vec![self.display_buffer_builder(), self.display_score()];
+                    let msgs = vec![self.display_player(), self.display_score()];
                     if let Some(tx) = &self.sender {
                         //log::info!("is this sending");
                         for msg in msgs {
