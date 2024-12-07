@@ -21,10 +21,11 @@ pub struct KasaControl {
     stats: Vec<Realtime>,
     monitor_idx: usize,
     update: bool,
+    target_ip: String,
 }
 
 impl KasaControl {
-    pub fn new() -> Self {
+    pub fn new(ip: String) -> Self {
         Self {
             receiver: None,
             sender: None,
@@ -41,17 +42,18 @@ impl KasaControl {
             ],
             monitor_idx: 0,
             update: true,
+            target_ip: ip,
         }
     }
-    pub fn get_target_stat(idx: u8) -> Option<Realtime> {
+    pub fn get_target_stat(&self, idx: u8) -> Option<Realtime> {
         let app_config = CONFIG;
-        let mut stream = TcpStream::connect(format!("{:}:9999", app_config.target_ip)).ok()?;
+        let mut stream = TcpStream::connect(format!("{:}:9999", self.target_ip)).ok()?;
         Some(kasa_protocol::get_realtime_by_idx(&mut stream, idx.into()).ok()?)
     }
 
-    pub fn get_all_stats() -> Option<Realtime> {
+    pub fn get_all_stats(&self) -> Option<Realtime> {
         let app_config = CONFIG;
-        let mut stream = TcpStream::connect(format!("{:}:9999", app_config.target_ip)).ok()?;
+        let mut stream = TcpStream::connect(format!("{:}:9999", self.target_ip)).ok()?;
         let stats_vec = kasa_protocol::get_all_realtime(&mut stream).ok()?;
         Some(Realtime {
             current_ma: stats_vec.iter().fold(0u32, |sum, rt| sum + rt.current_ma),
@@ -104,10 +106,10 @@ impl KasaControl {
         }
     }
 
-    fn toggle_by_idx(btn_idx: u32) {
+    fn toggle_by_idx(&self, btn_idx: u32) {
         let app_config = CONFIG;
         if btn_idx > 2 && btn_idx < 9 {
-            if let Ok(mut stream) = TcpStream::connect(format!("{:}:9999", app_config.target_ip)) {
+            if let Ok(mut stream) = TcpStream::connect(format!("{:}:9999", self.target_ip)) {
                 let _res = kasa_protocol::toggle_relay_by_idx(&mut stream, (btn_idx - 3) as usize);
             }
         }
@@ -119,6 +121,37 @@ impl KasaControl {
             BoolDir::Prev => self.monitor_idx -= 1,
         };
         self.update = true;
+    }
+    
+    fn display_ip(&mut self) -> DisplayMessage {
+        DisplayMessage {
+            module_name: self.get_display_name(),
+            content: MessageType::Lines(vec![DisplayLine {
+                line: { format!("{:}", self.target_ip) },
+                size: TextSize::Normal,
+                x_offset: 10,
+                y_offset: 0,
+            }]),
+            status_line: true,
+            clear_rect: Rectangle::new(Point::new(10, 0), Size::new(90, 10)),
+        }
+    }
+
+    fn clear_ip(&mut self) {
+        if let Some(tx) = &self.sender {
+            //log::info!("is this sending");
+            let _ = tx.send(DisplayMessage {
+                module_name: self.get_display_name(),
+                content: MessageType::Lines(vec![DisplayLine {
+                    line: "".to_string(),
+                    size: TextSize::Normal,
+                    x_offset: 10,
+                    y_offset: 0,
+                }]),
+                status_line: true,
+                clear_rect: Rectangle::new(Point::new(10, 0), Size::new(90, 10)),
+            });
+        }
     }
 }
 
@@ -154,7 +187,7 @@ impl RemoteModule for KasaControl {
             if poll_counter == 100 {
                 //every 5 seconds with 100mili loop delay unless toggle takes time
                 poll_counter = 0;
-                if let Some(stat) = KasaControl::get_target_stat(self.monitor_idx as u8) {
+                if let Some(stat) = self.get_target_stat(self.monitor_idx as u8) {
                     self.stats[self.monitor_idx] = stat;
                     self.update = true;
                 }
@@ -164,6 +197,7 @@ impl RemoteModule for KasaControl {
                     Ok(msg) => {
                         if msg.status == 10 {
                             self.update = true;
+                            self.clear_ip();
                             log::info!("kc exiting");
                             return;
                         } else if msg.status == 0 && self.monitor_idx > 0 {
@@ -173,17 +207,23 @@ impl RemoteModule for KasaControl {
                             self.update_idx(BoolDir::Next);
                             log::info!("{:}", self.monitor_idx);
                         } else {
-                            KasaControl::toggle_by_idx(msg.status);
+                            self.toggle_by_idx(msg.status);
                         }
                     }
                     _ => (),
                 }
                 if self.update {
-                    let msg = self.display_line_builder();
+                    let msgs = vec![self.display_line_builder(), self.display_ip()];
                     if let Some(tx) = &self.sender {
-                        //log::info!("is this sending");
-                        let _ = tx.send(msg);
+                        for msg in msgs {
+                            let _ = tx.send(msg);
+                        }
                     }
+                    //let msg = self.display_line_builder();
+                    //if let Some(tx) = &self.sender {
+                    //    //log::info!("is this sending");
+                    //    let _ = tx.send(msg);
+                    //}
                     self.update = false;
                 }
             }

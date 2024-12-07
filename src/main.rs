@@ -4,6 +4,7 @@ use crate::peripheral_util::{
     display::{display_error, Display, DisplayMessage},
     wifi,
 };
+use rust_kasa::device;
 use anyhow::{bail, Result};
 use embedded_hal_bus::i2c::MutexDevice;
 use esp_idf_svc::eventloop::EspSystemEventLoop;
@@ -104,23 +105,33 @@ fn main() -> Result<()> {
 
     ThreadSpawnConfiguration {
         name: Some("runner_service\0".as_bytes()),
-        stack_size: 10000,
+        stack_size: 40000,
         priority: 14,
         ..Default::default()
     }
     .set()
     .unwrap();
     let runner_dtx = disp_tx.clone();
+
+    let mut modules: Vec<Box<dyn module_runner::RemoteModule + Send>> = vec![Box::new(snake::Snake::new())];
+    let devices = device::discover_multiple_ip();
+    if let Ok(d) = devices {
+        log::info!("got devices");
+        for dev in d {
+            modules.push(Box::new(kasa_control::KasaControl::new(dev)));
+        }
+    }
     let mut md = crate::module_runner::ModuleRunner::new(
         but_rx,
         disp_tx.clone(),
-        vec![
-            Box::new(snake::Snake::new()),
-            Box::new(kasa_control::KasaControl::new()),
-            Box::new(test::TestModule::new()),
-        ],
+        modules,
+        //vec![
+        //    Box::new(snake::Snake::new()),
+        //    Box::new(kasa_control::KasaControl::new()),
+        //    Box::new(test::TestModule::new()),
+        //],
     );
-    let _e_thread = thread::Builder::new().stack_size(10000).spawn(move || {
+    let _e_thread = thread::Builder::new().stack_size(40000).spawn(move || {
         module_runner::runner_service(&mut md);
         //if module_runner is dying, will it kill child threads?
         display_error(runner_dtx, "Module_Runner\r\nExited".to_string());
