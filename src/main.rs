@@ -4,7 +4,6 @@ use crate::peripheral_util::{
     display::{display_error, Display, DisplayMessage},
     wifi,
 };
-use rust_kasa::device;
 use anyhow::{bail, Result};
 use embedded_hal_bus::i2c::MutexDevice;
 use esp_idf_svc::eventloop::EspSystemEventLoop;
@@ -12,6 +11,7 @@ use esp_idf_svc::hal::prelude::Peripherals;
 use esp_idf_svc::hal::prelude::*;
 use esp_idf_svc::hal::task::thread::ThreadSpawnConfiguration;
 use esp_idf_svc::hal::{gpio, i2c};
+use rust_kasa::device;
 use std::sync::{mpsc, Mutex};
 use std::thread;
 
@@ -113,7 +113,8 @@ fn main() -> Result<()> {
     .unwrap();
     let runner_dtx = disp_tx.clone();
 
-    let mut modules: Vec<Box<dyn module_runner::RemoteModule + Send>> = vec![Box::new(snake::Snake::new())];
+    let mut modules: Vec<Box<dyn module_runner::RemoteModule + Send>> =
+        vec![Box::new(snake::Snake::new())];
     let devices = device::discover_multiple_ip();
     if let Ok(d) = devices {
         log::info!("got devices");

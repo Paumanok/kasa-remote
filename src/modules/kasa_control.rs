@@ -22,6 +22,7 @@ pub struct KasaControl {
     monitor_idx: usize,
     update: bool,
     target_ip: String,
+    num_children: usize,
 }
 
 impl KasaControl {
@@ -43,16 +44,19 @@ impl KasaControl {
             monitor_idx: 0,
             update: true,
             target_ip: ip,
+            num_children: 0,
         }
     }
     pub fn get_target_stat(&self, idx: u8) -> Option<Realtime> {
-        let app_config = CONFIG;
         let mut stream = TcpStream::connect(format!("{:}:9999", self.target_ip)).ok()?;
-        Some(kasa_protocol::get_realtime_by_idx(&mut stream, idx.into()).ok()?)
+        if self.num_children > 0 {
+            Some(kasa_protocol::get_realtime_by_idx(&mut stream, idx.into()).ok()?)
+        } else {
+            Some(kasa_protocol::get_realtime(&mut stream).ok()?)
+        }
     }
 
     pub fn get_all_stats(&self) -> Option<Realtime> {
-        let app_config = CONFIG;
         let mut stream = TcpStream::connect(format!("{:}:9999", self.target_ip)).ok()?;
         let stats_vec = kasa_protocol::get_all_realtime(&mut stream).ok()?;
         Some(Realtime {
@@ -64,6 +68,11 @@ impl KasaControl {
             voltage_mv: (stats_vec.iter().fold(0u32, |sum, rt| sum + rt.voltage_mv))
                 / stats_vec.len() as u32,
         })
+    }
+
+    pub fn get_num_children(&self) -> Option<usize> {
+        let mut stream = TcpStream::connect(format!("{:}:9999", self.target_ip)).ok()?;
+        Some(kasa_protocol::get_children(&mut stream).ok()?.len())
     }
 
     fn display_line_builder(&mut self) -> DisplayMessage {
@@ -106,11 +115,39 @@ impl KasaControl {
         }
     }
 
+    fn display_line_builder_single(&mut self) -> DisplayMessage {
+        DisplayMessage {
+            module_name: self.get_display_name(),
+            content: MessageType::Lines(vec![
+                DisplayLine {
+                    //line: "line 1".to_string(),
+                    line: { String::from("   Single Outlet\r\n   No emeter  ") },
+                    size: TextSize::Normal,
+                    x_offset: 0,
+                    y_offset: 18,
+                },
+                DisplayLine {
+                    //line: "line 2".to_string(),
+                    line: { String::from("      *      ") },
+                    size: TextSize::Small,
+                    x_offset: 28,
+                    y_offset: 50,
+                },
+            ]),
+            status_line: false,
+            clear_rect: Rectangle::new(Point::new(0, 15), Size::new(128, 44)),
+        }
+    }
+
     fn toggle_by_idx(&self, btn_idx: u32) {
-        let app_config = CONFIG;
         if btn_idx > 2 && btn_idx < 9 {
             if let Ok(mut stream) = TcpStream::connect(format!("{:}:9999", self.target_ip)) {
-                let _res = kasa_protocol::toggle_relay_by_idx(&mut stream, (btn_idx - 3) as usize);
+                if self.num_children > 0 {
+                    let _res =
+                        kasa_protocol::toggle_relay_by_idx(&mut stream, (btn_idx - 3) as usize);
+                } else {
+                    let _res = kasa_protocol::toggle_single_relay_outlet(&mut stream);
+                }
             }
         }
     }
@@ -122,7 +159,7 @@ impl KasaControl {
         };
         self.update = true;
     }
-    
+
     fn display_ip(&mut self) -> DisplayMessage {
         DisplayMessage {
             module_name: self.get_display_name(),
@@ -180,6 +217,10 @@ impl RemoteModule for KasaControl {
         let mut poll_counter: usize = 0;
         //redraw the display at load
         self.update = true;
+        self.num_children = match self.get_num_children() {
+            Some(n) => n,
+            _ => 0,
+        };
 
         loop {
             std::thread::sleep(std::time::Duration::from_millis(50));
@@ -213,7 +254,11 @@ impl RemoteModule for KasaControl {
                     _ => (),
                 }
                 if self.update {
-                    let msgs = vec![self.display_line_builder(), self.display_ip()];
+                    let mut msgs = vec![self.display_ip()];
+                    msgs.push(match self.num_children {
+                        0 => self.display_line_builder_single(),
+                        _ => self.display_line_builder(),
+                    });
                     if let Some(tx) = &self.sender {
                         for msg in msgs {
                             let _ = tx.send(msg);
